@@ -8,22 +8,25 @@ import time
 import os
 
 # --- CONFIGURATION ---
+# --- CONFIGURATION ---
+from dotenv import load_dotenv
+load_dotenv() # Load variables from .env
+
 MQTT_BROKER = "broker.hivemq.com"
 MQTT_TOPIC_IMAGE = "eagleeye/camera/image"
 # IMPORTANT: Ensure this file exists in the same directory
 FIREBASE_KEY_PATH = "serviceAccountKey.json"
 
 # --- CLOUDINARY CONFIG ---
-# TODO: Replace with your actual Cloudinary credentials
 cloudinary.config( 
-  cloud_name = "dsq74osj5", 
-  api_key = "454823543384692", 
-  api_secret = "UPF9ZrxjhxYrttoVKerx2NeOPes",
+  cloud_name = os.getenv("CLOUDINARY_CLOUD_NAME"), 
+  api_key = os.getenv("CLOUDINARY_API_KEY"), 
+  api_secret = os.getenv("CLOUDINARY_API_SECRET"),
   secure = True
 )
 
-# TODO: Replace with your actual database URL
-DATABASE_URL = 'https://fyproject-2d3f6-default-rtdb.firebaseio.com/'
+# Database URL
+DATABASE_URL = os.getenv("FIREBASE_DATABASE_URL")
 
 # --- FIREBASE INIT ---
 if not os.path.exists(FIREBASE_KEY_PATH):

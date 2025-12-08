@@ -8,9 +8,13 @@
 #include "img_converters.h"
 
 // --- CONFIGURATION ---
-const char* ssid_iot = "PEOPLE";
-const char* password_iot = "12345678";
-const char* mqtt_server_iot = "broker.hivemq.com";
+#include "secrets.h" 
+
+// Ensure these are defined in secrets.h
+// const char* ssid_iot = "YOUR_WIFI_SSID";
+// const char* password_iot = "YOUR_WIFI_PASSWORD";
+// const char* mqtt_server_iot = "broker.hivemq.com";
+
 const char* mqtt_topic_image = "eagleeye/camera/image";
 
 WiFiClient espClient;

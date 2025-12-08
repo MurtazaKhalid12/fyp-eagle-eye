@@ -1,0 +1,14 @@
+# Secrets
+.env
+secrets.h
+serviceAccountKey.json
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Arduino / ESP32
+*.bin
+*.elf
+*.map
