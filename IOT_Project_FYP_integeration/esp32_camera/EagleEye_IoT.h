@@ -64,6 +64,7 @@ void init_wifi_mqtt() {
     }
     Serial.println("\nWiFi connected");
     client.setServer(mqtt_server_iot, 1883);
+    client.setBufferSize(20480); // 20KB buffer for raw binary JPEG
 }
 
 // --- KEEP ALIVE ---
@@ -72,32 +73,23 @@ void update_mqtt() {
 }
 
 // --- MAIN UPLOAD LOGIC ---
-void capture_and_send_image() {
-    Serial.println("Human detected! Capturing fresh frame for upload...");
+void capture_and_send_image(uint8_t *img_buf, int w, int h) {
+    Serial.println("Human detected! reusing AI buffer for upload...");
     
-    // 1. Capture a FRESH frame for the upload (High Quality)
-    camera_fb_t * fb_upload = esp_camera_fb_get();
-    if (!fb_upload) {
-         Serial.println("Failed to capture upload frame");
-         return;
-    } 
-    
-    // 2. Convert raw RGB565 frame to JPEG
+    // 2. Convert RGB888 buffer to JPEG
     uint8_t * jpeg_buf = NULL;
     size_t jpeg_len = 0;
-    // fmt2jpg acts on the raw framebuffer (RGB565) directly
-    bool converted = fmt2jpg(fb_upload->buf, fb_upload->len, fb_upload->width, fb_upload->height, fb_upload->format, 31, &jpeg_buf, &jpeg_len);
+    
+    // Use PIXFORMAT_RGB888 since the snapshot_buf is RGB888
+    bool converted = fmt2jpg(img_buf, w * h * 3, w, h, PIXFORMAT_RGB888, 31, &jpeg_buf, &jpeg_len);
 
     if (converted) {
         // 3. Connect to MQTT if not connected
         if (!client.connected()) mqtt_reconnect();
         
-        // 4. Base64 Encode
-        String base64Image = msg_base64_encode(jpeg_buf, jpeg_len);
-
-        // 5. Publish
-        if (client.beginPublish(mqtt_topic_image, base64Image.length(), false)) {
-            client.print(base64Image);
+        // 4. Publish RAW BINARY (No Base64 - Faster!)
+        if (client.beginPublish(mqtt_topic_image, jpeg_len, false)) {
+            client.write(jpeg_buf, jpeg_len);
             client.endPublish();
             Serial.println("Image sent to Broker!");
         } else {
@@ -107,7 +99,6 @@ void capture_and_send_image() {
     } else {
         Serial.println("JPEG Compression Failed");
     }
-    esp_camera_fb_return(fb_upload);
 }
 
 #endif
