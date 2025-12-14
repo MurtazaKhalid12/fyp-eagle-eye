@@ -120,7 +120,7 @@ static camera_config_t camera_config = {
     .jpeg_quality = 12, //0-63 lower number means higher quality
     .fb_count = 1,       //if more than one, i2s runs in continuous mode. Use only with JPEG
     .fb_location = CAMERA_FB_IN_PSRAM,
-    .grab_mode = CAMERA_GRAB_WHEN_EMPTY,
+    .grab_mode = CAMERA_GRAB_LATEST,
 };
 
 /* Function definitions ------------------------------------------------------- */
@@ -215,7 +215,7 @@ void loop()
                 bb.height);
                 
         // Check for human
-        if (bb.value > 0.8 && String(bb.label) == "human") {
+        if (bb.value > 0.9 && String(bb.label) == "human") {
             human_found = true;
         }
     }
@@ -232,11 +232,13 @@ void loop()
 #endif
 
     // --- EAGLEEYE LOGIC (Modular) ---
-    if (human_found) {
+    static unsigned long last_capture_time = 0;
+    // Cooldown of 2000ms (2 seconds) to prevent spamming, but keep loop running
+    if (human_found && (millis() - last_capture_time > 2000)) {
         // Delegate the work to the header file function
-        capture_and_send_image();
+        capture_and_send_image(snapshot_buf, EI_CLASSIFIER_INPUT_WIDTH, EI_CLASSIFIER_INPUT_HEIGHT);
         
-        delay(5000); 
+        last_capture_time = millis();
     }
     
     update_mqtt(); // Keep MQTT alive

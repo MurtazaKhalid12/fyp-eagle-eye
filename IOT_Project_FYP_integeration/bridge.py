@@ -12,7 +12,7 @@ import os
 from dotenv import load_dotenv
 load_dotenv() # Load variables from .env
 
-MQTT_BROKER = "broker.hivemq.com"
+MQTT_BROKER = "192.168.1.3"
 MQTT_TOPIC_IMAGE = "eagleeye/camera/image"
 # IMPORTANT: Ensure this file exists in the same directory
 FIREBASE_KEY_PATH = "serviceAccountKey.json"
@@ -44,17 +44,25 @@ except Exception as e:
     exit(1)
 
 # --- MQTT CALLBACKS ---
-def on_connect(client, userdata, flags, rc):
+def on_connect(client, userdata, flags, rc, properties):
     if rc == 0:
-        print("Bridge Connected to HiveMQ! Listening for intruders...")
-        client.subscribe(MQTT_TOPIC_IMAGE)
+        print("Bridge Connected to Local Mosquitto! Listening for intruders...")
+        client.subscribe("#") # Debugging: Listen to EVERYTHING
     else:
         print(f"Failed to connect to HiveMQ, return code {rc}")
 
+def on_subscribe(client, userdata, mid, reason_code_list, properties):
+    print(f"Subscribed to topic! QoS: {reason_code_list[0]}")
+
 def on_message(client, userdata, msg):
+    print(f"DEBUG: Received message on topic: '{msg.topic}'")
+    if msg.topic != MQTT_TOPIC_IMAGE:
+        print("Ignored non-image topic.")
+        return
+
     print("Human Detected! Receiving Image Payload...")
     
-    # 1. Decode Base64 Image
+    # 1. Process Raw Binary JPEG (No Base64)
     try:
         if not msg.payload:
             print("Received empty payload.")
@@ -62,8 +70,8 @@ def on_message(client, userdata, msg):
 
         print(f"Payload received: {len(msg.payload)} bytes")
         
-        image_data = base64.b64decode(msg.payload)
-        print(f"Decoded data size: {len(image_data)} bytes")
+        image_data = msg.payload  # Already binary JPEG
+        print(f"Image data size: {len(image_data)} bytes")
 
         # Check for JPEG Magic Bytes (FF D8)
         if len(image_data) > 2:
@@ -113,8 +121,9 @@ def on_message(client, userdata, msg):
              os.remove(filename)
 
 # --- MAIN LOOP ---
-client = mqtt.Client()
+client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
 client.on_connect = on_connect
+client.on_subscribe = on_subscribe
 client.on_message = on_message
 
 print(f"Connecting to MQTT Broker: {MQTT_BROKER}...")
