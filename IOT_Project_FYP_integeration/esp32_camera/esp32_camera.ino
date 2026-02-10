@@ -81,8 +81,8 @@
 #endif
 
 /* Constant defines -------------------------------------------------------- */
-#define EI_CAMERA_RAW_FRAME_BUFFER_COLS           320
-#define EI_CAMERA_RAW_FRAME_BUFFER_ROWS           240
+#define EI_CAMERA_RAW_FRAME_BUFFER_COLS           640
+#define EI_CAMERA_RAW_FRAME_BUFFER_ROWS           480
 #define EI_CAMERA_FRAME_BYTE_SIZE                 3
 
 /* Private variables ------------------------------------------------------- */
@@ -114,11 +114,11 @@ static camera_config_t camera_config = {
     .ledc_timer = LEDC_TIMER_0,
     .ledc_channel = LEDC_CHANNEL_0,
 
-    .pixel_format = PIXFORMAT_RGB565, // [OPTIMIZATION] Changed from JPEG to RGB565
-    .frame_size = FRAMESIZE_QVGA,    //QQVGA-UXGA Do not use sizes above QVGA when not JPEG
+    .pixel_format = PIXFORMAT_JPEG, // JPEG for high-quality image capture
+    .frame_size = FRAMESIZE_VGA,    // VGA (640x480) for better quality images
 
-    .jpeg_quality = 12, //0-63 lower number means higher quality
-    .fb_count = 1,       //if more than one, i2s runs in continuous mode. Use only with JPEG
+    .jpeg_quality = 10, //0-63 lower number means higher quality (10 = excellent)
+    .fb_count = 2,       // Use 2 frame buffers for better performance with JPEG
     .fb_location = CAMERA_FB_IN_PSRAM,
     .grab_mode = CAMERA_GRAB_LATEST,
 };
@@ -214,8 +214,8 @@ void loop()
                 bb.width,
                 bb.height);
                 
-        // Check for human
-        if (bb.value > 0.9 && String(bb.label) == "human") {
+        // Check for human with confidence >= 60%
+        if (bb.value >= 0.6 && String(bb.label) == "human") {
             human_found = true;
         }
     }
@@ -334,7 +334,7 @@ bool ei_camera_capture(uint32_t img_width, uint32_t img_height, uint8_t *out_buf
         return false;
     }
 
-   bool converted = fmt2rgb888(fb->buf, fb->len, PIXFORMAT_RGB565, snapshot_buf);
+   bool converted = fmt2rgb888(fb->buf, fb->len, PIXFORMAT_JPEG, snapshot_buf);
 
    esp_camera_fb_return(fb);
 
