@@ -1,137 +1,100 @@
 # 🦅 EagleEye: Intelligent Edge AI Surveillance System
 
-![Project Status](https://img.shields.io/badge/Status-Active-success)
-![Platform](https://img.shields.io/badge/Platform-ESP32--CAM-blue)
-![AI](https://img.shields.io/badge/AI-TinyML%20%2F%20Edge%20Impulse-orange)
-![Connectivity](https://img.shields.io/badge/Connectivity-MQTT-green)
+[![Status](https://img.shields.io/badge/Status-Active-success)](https://github.com/muhammadAB123/fyp-eagle-eye)
+[![Platform](https://img.shields.io/badge/Platform-ESP32--CAM-blue)](https://espressif.com)
+[![AI](https://img.shields.io/badge/AI-TinyML%20%2F%20Edge%20Impulse-orange)](https://edgeimpulse.com)
+[![Database](https://img.shields.io/badge/Database-Firebase-yellow)](https://firebase.google.com)
+[![Storage](https://img.shields.io/badge/Storage-Cloudinary-blue)](https://cloudinary.com)
 
-**EagleEye** is a decentralized, privacy-focused surveillance system that processes video feeds **on the edge**. Instead of streaming terabytes of raw footage to a central server, EagleEye uses the ESP32-CAM to detect intruders locally using TinyML. Only when a threat is detected is the high-resolution evidence transmitted for logging.
-
----
-
-## 🧐 The Problem with Traditional CCTV
-
-Traditional "Smart" Cameras face three critical bottlenecks:
-
-1.  **Bandwidth Hogging**: Streaming 24/7 video consumes massive amounts of data, clogging local networks.
-2.  **High Latency**: Cloud-based AI analysis introduces delays. Seconds matter when an intruder is at the door.
-3.  **Privacy Risks**: Constant uploading of footage to third-party clouds raises significant privacy concerns.
-
-## 💡 The Solution: Edge Computing
-
-EagleEye shifts the intelligence from the cloud to the camera itself.
-
-*   **Zero-Latency Detection**: AI inference runs directly on the ESP32 MCU (240MHz).
-*   **Bandwidth Efficient**: Zero data usage until a human is detected.
-*   **Privacy First**: No video leaves your premises unless an event occurs.
+**EagleEye** is a decentralized, privacy-focused surveillance system that processes video feeds **on the edge**. Using the ESP32-CAM and TinyML, it detects intruders locally and only transmits high-resolution evidence to the cloud when a threat is confirmed.
 
 ---
 
 ## 🏗️ System Architecture
 
-The system consists of two main components: the **Edge Node** (ESP32-CAM) and the **Central Bridge** (Python).
+EagleEye bridges the gap between low-power edge hardware and powerful cloud services.
 
 ```mermaid
-graph LR
-    A[Human Presence] -->|Visual Input| B(ESP32-CAM)
-    B -->|Preprocessing| C{TinyML Model}
+graph TD
+    A[Human Motion] -->|Visual Feed| B(ESP32-CAM)
+    B -->|Inference| C{TinyML Model}
     C -->|No Human| B
-    C -->|Human Detected!| D[Capture High-Res Image]
-    D -->|JPEG Compression| E[Base64 Encode]
-    E -->|MQTT Publish| F((HiveMQ Broker))
-    F -->|MQTT Subscribe| G[Python Bridge]
-    G -->|Decode & Verify| H[Local Storage /captures]
-    G -.->|Optional| I[Cloudinary / Firebase]
+    C -->|Detected!| D[Capture High-Res JPEG]
+    D -->|MQTT| E[Python Bridge]
+    E -->|Upload| F[Cloudinary Storage]
+    E -->|Log Data| G[Firebase Realtime DB]
+    F -->|Image URL| G
+    G -->|Real-time Sync| H[Mobile App]
+    H -->|View Alert| I[User Notification]
 ```
 
 ### 1. The Edge Layer (Firmware)
 *   **Hardware**: AI-Thinker ESP32-CAM.
-*   **Software**: Arduino C++ with Edge Impulse SDK.
-*   **Function**:
-    *   Captures low-res frames for continuous inference.
-    *   Runs a quantized quantization-aware trained neural network.
-    *   Upon positive detection (>80% confidence), captures a high-quality JPEG.
-    *   Encodes image to Base64 and publishes to MQTT.
+*   **AI Model**: Quantized Neural Network trained via Edge Impulse.
+*   **Logic**: Runs continuous low-res inference. Upon detection (>80% accuracy), it captures a high-resolution JPEG and sends it via MQTT.
 
-### 2. The Application Layer (Backend)
-*   **Software**: Python 3.
-*   **Libraries**: `paho-mqtt`, `base64`.
-*   **Function**:
-    *   Listens to the `eagleeye/camera/image` topic.
-    *   Decodes the Base64 payload.
-    *   Validates JPEG integrity (Magic Bytes check).
-    *   Saves evidence to the local `captures/` directory.
+### 2. The Cloud Gateway (Python Bridge)
+*   **Connectivity**: Connects local MQTT broker to the internet.
+*   **Cloudinary**: Stores high-resolution images securely and provides optimized delivery URLs.
+*   **Firebase**: Acts as the central nervous system, storing timestamps, alert types, and image URLs in a Realtime Database.
+
+### 3. The Mobile Application (React Native)
+*   **Real-time Alerts**: Listens to Firebase and updates the UI instantly when an intrusion occurs.
+*   **Gallery View**: Browse through historical alerts with high-quality evidence images.
+*   **Tech Stack**: Expo, React Native, Firebase SDK.
 
 ---
 
-## 🚀 Getting Started
+## 🚀 Setting Up the Project
 
-### Hardware Requirements
-*   ESP32-CAM (AI-Thinker Model)
-*   FTDI Programmer (for flashing)
-*   5V Power Supply
+### Hardware Prerequisites
+*   ESP32-CAM (AI-Thinker)
+*   FTDI USB-to-TTL Adapter
+*   5V 2A Power Supply
 
-### Software Prerequisites
-*   **Arduino IDE** (with ESP32 Board Manager installed)
-*   **Python 3.x**
-*   **VS Code** (Recommended)
+### Software Setup
 
-### 📥 1. Firmware Installation (ESP32)
+#### 1. Firmware (ESP32)
+1.  Open `IOT_Project_FYP_integeration/esp32_camera/esp32_camera.ino`.
+2.  Configure `secrets.h` with your WiFi and MQTT credentials.
+3.  Flash using the AI Thinker ESP32-CAM board setting.
 
-1.  Open `IOT_Project_FYP_integeration/esp32_camera/esp32_camera.ino` in Arduino IDE.
-2.  Install the required library: **EdgeImpulse** (Add the zipped library from the simple folder if needed).
-3.  Open `secrets.h` (create it if missing based on headers) and configure your credentials:
-    ```cpp
-    const char* ssid_iot = "YOUR_WIFI_SSID";
-    const char* password_iot = "YOUR_WIFI_PASSWORD";
-    const char* mqtt_server_iot = "broker.hivemq.com";
-    ```
-4.  Select Board: **AI Thinker ESP32-CAM**.
-5.  **Upload** the code.
-
-### 🐍 2. Backend Bridge Setup
-
-1.  Navigate to the integration folder:
-    ```bash
-    cd IOT_Project_FYP_integeration
-    ```
+#### 2. Backend (Python Bridge)
+1.  Enter the integration directory: `cd IOT_Project_FYP_integeration`.
 2.  Install dependencies:
     ```bash
     pip install paho-mqtt firebase-admin cloudinary python-dotenv
     ```
-3.  Run the bridge:
-    ```bash
-    python bridge.py
-    ```
+3.  Configure `.env` with your Cloudinary and Firebase credentials.
+4.  Run the bridge: `python bridge.py`.
+
+#### 3. Mobile App (Expo)
+1.  Navigate to `mobile-app`.
+2.  Install packages: `npm install`.
+3.  Start the app: `npx expo start`.
 
 ---
 
-## 📸 Snapshots
+## 📸 Project Gallery
 
-> *Placeholders for your actual project screenshots*
-
-
-### System Diagrams
-
-| System Architecture | Logic Flowchart |
+### Mobile App Interface
+| Alert List | Image Detail |
 | :---: | :---: |
-| ![System Architecture](./assets/system_architecture.png) | ![Logic Flow](./assets/local_flowchart.png) |
+| [Insert App Screenshot 1] | [Insert App Screenshot 2] |
 
-
----
-
-## 🔮 Future Roadmap
-
-- [ ] **Face Recognition**: Upgrade model to identify *who* is at the door, not just *that* someone is there.
-- [ ] **Mobile App**: React Native app for push notifications.
-- [ ] **OTA Updates**: Over-the-air firmware updates for the camera.
+### Hardware Setup
+| ESP32-CAM | Edge AI Dashboard |
+| :---: | :---: |
+| [Insert Hardware Photo] | [Insert Edge Impulse Graph] |
 
 ---
 
-## 🤝 Contribution
+## 🛠️ Tech Stack & Credits
+*   **Communication**: Local MQTT via Mosquitto Broker (Lightweight IoT messaging)
+*   **React Native**: Cross-platform mobile performance.
+*   **Image Text**: *"Advanced Tech Stack: Leveraging Local Mosquitto and modern protocols for ultimate system reliability."*
 
-Contributions are welcome! Please fork the repository and submit a pull request.
+---
 
 ## 📄 License
-
-MIT License
+Detailed license information can be found in the [LICENSE](LICENSE) file. Developed as part of a Final Year Project (FYP).

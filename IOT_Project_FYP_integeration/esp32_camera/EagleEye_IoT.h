@@ -20,6 +20,9 @@ const char* mqtt_topic_image = "eagleeye/camera/image";
 WiFiClient espClient;
 PubSubClient client(espClient);
 
+// --- FLASHLIGHT CONFIGURATION ---
+#define FLASH_GPIO_NUM 4  // AI Thinker ESP32-CAM flash LED pin
+
 // --- HELPER FOR BASE64 ---
 String msg_base64_encode(uint8_t *data, size_t len) {
   base64_encodestate _state;
@@ -65,6 +68,11 @@ void init_wifi_mqtt() {
     Serial.println("\nWiFi connected");
     client.setServer(mqtt_server_iot, 1883);
     client.setBufferSize(20480); // 20KB buffer for raw binary JPEG
+    
+    // Initialize flashlight pin
+    pinMode(FLASH_GPIO_NUM, OUTPUT);
+    digitalWrite(FLASH_GPIO_NUM, LOW);  // Start with flashlight OFF
+    Serial.println("Flashlight initialized (GPIO 4)");
 }
 
 // --- KEEP ALIVE ---
@@ -74,31 +82,56 @@ void update_mqtt() {
 
 // --- MAIN UPLOAD LOGIC ---
 void capture_and_send_image(uint8_t *img_buf, int w, int h) {
-    Serial.println("Human detected! reusing AI buffer for upload...");
+    Serial.println("Human detected! Capturing HIGH-QUALITY image...");
     
-    // 2. Convert RGB888 buffer to JPEG
-    uint8_t * jpeg_buf = NULL;
-    size_t jpeg_len = 0;
+    // TURN ON FLASHLIGHT for better image quality
+    digitalWrite(FLASH_GPIO_NUM, HIGH);
+    Serial.println("Flashlight ON");
     
-    // Use PIXFORMAT_RGB888 since the snapshot_buf is RGB888
-    bool converted = fmt2jpg(img_buf, w * h * 3, w, h, PIXFORMAT_RGB888, 31, &jpeg_buf, &jpeg_len);
-
-    if (converted) {
-        // 3. Connect to MQTT if not connected
-        if (!client.connected()) mqtt_reconnect();
-        
-        // 4. Publish RAW BINARY (No Base64 - Faster!)
-        if (client.beginPublish(mqtt_topic_image, jpeg_len, false)) {
-            client.write(jpeg_buf, jpeg_len);
-            client.endPublish();
-            Serial.println("Image sent to Broker!");
-        } else {
-            Serial.println("MQTT Publish Failed (Check Buffer Size)");
-        }
-        free(jpeg_buf);
-    } else {
-        Serial.println("JPEG Compression Failed");
+    // IMPORTANT: Temporarily switch camera to JPEG mode for high-quality capture
+    sensor_t * s = esp_camera_sensor_get();
+    s->set_framesize(s, FRAMESIZE_SVGA);  // 800x600 for excellent quality
+    s->set_quality(s, 8);  // JPEG quality 8 (very high quality, 0-63 scale)
+    
+    // Delay to let camera adjust and flashlight stabilize
+    delay(200);
+    
+    // Capture a FRESH high-resolution JPEG with flashlight
+    camera_fb_t *fb = esp_camera_fb_get();
+    
+    // TURN OFF FLASHLIGHT immediately after capture
+    digitalWrite(FLASH_GPIO_NUM, LOW);
+    Serial.println("Flashlight OFF");
+    
+    if (!fb) {
+        Serial.println("Camera capture failed for upload");
+        // Restore settings for AI
+        s->set_framesize(s, FRAMESIZE_VGA);
+        s->set_quality(s, 12);
+        return;
     }
+    
+    Serial.printf("Captured HIGH-QUALITY image: %d bytes (should be 30-100KB)\n", fb->len);
+    
+    // Connect to MQTT if not connected
+    if (!client.connected()) mqtt_reconnect();
+    
+    // Publish the high-quality JPEG directly
+    if (client.beginPublish(mqtt_topic_image, fb->len, false)) {
+        client.write(fb->buf, fb->len);
+        client.endPublish();
+        Serial.println("HIGH-QUALITY Image sent to Broker!");
+    } else {
+        Serial.println("MQTT Publish Failed (Check Buffer Size)");
+    }
+    
+    // Return the frame buffer to free memory
+    esp_camera_fb_return(fb);
+    
+    // Restore camera settings for AI inference
+    s->set_framesize(s, FRAMESIZE_VGA);
+    s->set_quality(s, 12);
+    delay(100);
 }
 
 #endif

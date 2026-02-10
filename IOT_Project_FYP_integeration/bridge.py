@@ -19,11 +19,14 @@ FIREBASE_KEY_PATH = "serviceAccountKey.json"
 
 # --- CLOUDINARY CONFIG ---
 cloudinary.config( 
-  cloud_name = os.getenv("CLOUDINARY_CLOUD_NAME"), 
-  api_key = os.getenv("CLOUDINARY_API_KEY"), 
-  api_secret = os.getenv("CLOUDINARY_API_SECRET"),
+  cloud_name = "dsq74osj5", 
+  api_key = "454823543384692", 
+  api_secret = "UPF9ZrxjhxYrttoVKerx2NeOPes",
   secure = True
 )
+
+# Verify Cloudinary config
+print(f"Cloudinary configured with cloud_name: {cloudinary.config().cloud_name}")
 
 # Database URL
 DATABASE_URL = os.getenv("FIREBASE_DATABASE_URL")
@@ -93,22 +96,22 @@ def on_message(client, userdata, msg):
             f.write(image_data)
         print(f"Image saved locally to {filename} ({os.path.getsize(filename)} bytes)")
 
-        # 3. Upload to Cloudinary (DISABLED)
-        # print("Uploading to Cloudinary...")
-        # upload_result = cloudinary.uploader.upload(filename, folder="eagleeye_intrusions")
-        # public_url = upload_result.get("secure_url")
-        # print(f"Image Uploaded: {public_url}")
+        # 3. Upload to Cloudinary
+        print("Uploading to Cloudinary...")
+        upload_result = cloudinary.uploader.upload(filename, folder="eagleeye_intrusions")
+        public_url = upload_result.get("secure_url")
+        print(f"Image Uploaded: {public_url}")
         
-        # 4. Log to Realtime Database (DISABLED)
-        # ref = db.reference('alerts')
-        # ref.push({
-        #     'timestamp': timestamp,
-        #     'image_url': public_url,
-        #     'type': 'Human Detected'
-        # })
-        # print("Alert logged to Realtime Database.")
+        # 4. Log to Realtime Database
+        ref = db.reference('alerts')
+        ref.push({
+            'timestamp': timestamp,
+            'image_url': public_url,
+            'type': 'Human Detected'
+        })
+        print("Alert logged to Realtime Database.")
         
-        print("Database upload skipped (Local Only Mode).")
+        print("Upload complete!")
         
         # Cleanup (Disabled: User wants to keep local copies)
         # if os.path.exists(filename):
