@@ -12,3 +12,10 @@ __pycache__/
 *.bin
 *.elf
 *.map
+*.rar
+
+# Datasets & Large Files
+Human_Detection_Dataset/
+*.h5
+*.tflite
+*.zip
