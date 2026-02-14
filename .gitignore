@@ -19,3 +19,4 @@ Human_Detection_Dataset/
 *.h5
 *.tflite
 *.zip
+Human-vs-NonHuman/
