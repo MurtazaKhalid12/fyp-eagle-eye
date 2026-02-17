@@ -15,9 +15,10 @@
 // --- INCLUDE IOT HEADER ---
 #include "EagleEye_IoT.h"
 
-// --- PIR SENSOR & DEEP SLEEP CONFIG ---
-#define PIR_PIN GPIO_NUM_14           // HW-416B data out (GPIO 2/13 have board pull-ups!)
-#define SLEEP_TIMEOUT_MS 30000        // Go to sleep after 30s of no human
+// --- INCLUDE WEB SERVER HEADER ---
+#include "camera_web_server.h"
+
+// --- CONFIGURATION ---
 #define CLEAR_SCENE_FRAMES 20         // ~20 consecutive "no human" frames = person left
 
 // --- PINS (AI THINKER) ---
@@ -118,65 +119,26 @@ void resize_rgb565_to_greyscale(uint8_t *src, int src_w, int src_h, int8_t *dst,
     }
 }
 
-// --- Print why the ESP32 woke up ---
-void print_wakeup_reason() {
-  esp_sleep_wakeup_cause_t reason = esp_sleep_get_wakeup_cause();
-  switch(reason) {
-    case ESP_SLEEP_WAKEUP_EXT0:
-      Serial.println(">>> WAKEUP: PIR Motion Detected! <<<");
-      break;
-    case ESP_SLEEP_WAKEUP_TIMER:
-      Serial.println(">>> WAKEUP: Timer <<<");
-      break;
-    default:
-      Serial.println(">>> WAKEUP: Power ON / Reset <<<");
-      break;
-  }
-}
 
-// --- Enter deep sleep ---
-void enter_deep_sleep() {
-  Serial.println("\n========================================");
-  Serial.println("   NO ACTIVITY - ENTERING DEEP SLEEP");
-  Serial.println("   Waiting for PIR motion on GPIO 14...");
-  Serial.println("========================================\n");
-  
-  // Deinit camera to free resources
-  esp_camera_deinit();
-  
-  // Configure GPIO 13 as wake-up source (HIGH = motion detected)
-  esp_sleep_enable_ext0_wakeup(PIR_PIN, 1);
-  
-  delay(500); // Let serial flush
-  esp_deep_sleep_start();
-  // *** ESP32 is now OFF — execution stops here ***
-  // *** It will restart from setup() when PIR triggers ***
-}
 
 void setup() {
   // 1. Initialize Serial
   delay(2000); // Wait for Serial Monitor
   Serial.begin(115200);
   Serial.println("\n\n=================================================");
-  Serial.println(">>> EAGLEEYE: PIR + AI DETECTION SYSTEM <<<");
-  Serial.println(">>> Greyscale Model (48x48x1) + Deep Sleep <<<");
+  Serial.println(">>> EAGLEEYE: AI DETECTION SYSTEM <<<");
+  Serial.println(">>> Greyscale Model (48x48x1) <<<");
   Serial.println("=================================================\n");
   
-  // 2. Disable SD Card to free GPIO 2 for PIR sensor
-  SD_MMC.end();
-  gpio_reset_pin(GPIO_NUM_2);
-  gpio_reset_pin(GPIO_NUM_12);
-  gpio_reset_pin(GPIO_NUM_13);
-  gpio_reset_pin(GPIO_NUM_14);
-  gpio_reset_pin(GPIO_NUM_15);
-  pinMode(PIR_PIN, INPUT_PULLDOWN);  // Counteract board pull-ups
-  Serial.println("SD Card disabled - GPIO 2 freed for PIR sensor");
-  
-  // 3. Print wake-up reason
-  print_wakeup_reason();
-
   // 3. Initialize WiFi & MQTT (from EagleEye_IoT.h)
   init_wifi_mqtt();
+  
+  // PRINT IP ADDRESS so user can find the stream
+  Serial.print("Camera Stream Ready! Go to: http://");
+  Serial.println(WiFi.localIP());
+  
+  // START WEB SERVER
+  startCameraServer();
 
   // 4. Initialize Memory for TFLite
   if (psramFound()) {
@@ -215,7 +177,17 @@ void setup() {
   input = interpreter->input(0);
   output = interpreter->output(0);
   
-  Serial.printf("Model input: %dx%dx%d (int8)\n", IMG_WIDTH, IMG_HEIGHT, IMG_CHANNELS);
+  Serial.println("\n--- MODEL DETAILS ---");
+  Serial.printf("Input Shape: %dx%dx%d\n", input->dims->data[1], input->dims->data[2], input->dims->data[3]);
+  Serial.printf("Input Type: %s (1=FLOAT32, 3=UINT8, 9=INT8)\n", TfLiteTypeGetName(input->type));
+  if (input->type == kTfLiteInt8) {
+      Serial.printf("Input Quantization: ZeroPoint=%d, Scale=%.5f\n", input->params.zero_point, input->params.scale);
+  }
+  
+  Serial.printf("Output Shape: %d classes\n", output->dims->data[1]);
+  Serial.printf("Output Type: %s\n", TfLiteTypeGetName(output->type));
+  Serial.println("---------------------\n");
+
   Serial.println("System Ready! Scanning for humans...\n");
 }
 
@@ -283,11 +255,11 @@ void loop() {
     // No human in this frame
     clear_scene_count++;
     
-    // Print status every 10th frame to reduce serial spam
-    if (frame_count % 10 == 0) {
-      Serial.printf("[FRAME %lu]     Monitoring... | Score: H=%d, N=%d | %dms\n",
-                    frame_count, human_score, non_human_score, inference_ms);
-    }
+    // Print status for EVERY frame
+    // if (frame_count % 10 == 0) {
+      Serial.printf("[FRAME %lu] Status: %s | Score: H=%d, N=%d | AI Time: %dms\n",
+                    frame_count, (human_detected ? "HUMAN" : "Monitor"), human_score, non_human_score, inference_ms);
+    // }
     
     // --- SCENE CLEARED: Person has left ---
     // If we had sent an image and now see no human for CLEAR_SCENE_FRAMES
@@ -297,19 +269,7 @@ void loop() {
     }
   }
 
-  // --- DEEP SLEEP CHECK ---
-  // If no human detected for SLEEP_TIMEOUT_MS, go to deep sleep
-  unsigned long idle_time = millis() - last_human_seen;
-  if (last_human_seen > 0 && idle_time > SLEEP_TIMEOUT_MS && !image_sent_this_event) {
-    Serial.printf("No human for %lu seconds. Entering deep sleep...\n", idle_time / 1000);
-    enter_deep_sleep();
-  }
-  
-  // Also sleep if we never detected anyone after initial scan period
-  if (last_human_seen == 0 && millis() > SLEEP_TIMEOUT_MS) {
-    Serial.println("No humans found during initial scan. Entering deep sleep...");
-    enter_deep_sleep();
-  }
+
 
   // Small delay
   delay(50);

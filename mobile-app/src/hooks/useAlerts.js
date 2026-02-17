@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ref, onValue, query, orderByChild, limitToLast, remove } from 'firebase/database';
+import { ref, onValue, query, orderByChild, limitToLast, remove, push } from 'firebase/database';
 import { database } from '../config/firebaseConfig';
 
 export function useAlerts() {
@@ -35,6 +35,16 @@ export function useAlerts() {
 
     const deleteAlert = async (alertId) => {
         try {
+            // Find the alert in the current state to get public_id
+            const alertToDelete = alerts.find(a => a.id === alertId);
+
+            // If it has a public_id (new records), queue it for deletion from Cloudinary
+            if (alertToDelete && alertToDelete.public_id) {
+                const cleanupRef = ref(database, 'deletion_requests');
+                await push(cleanupRef, { public_id: alertToDelete.public_id });
+                console.log('Queued for Cloudinary deletion:', alertToDelete.public_id);
+            }
+
             const alertRef = ref(database, `alerts/${alertId}`);
             await remove(alertRef);
             console.log('Alert deleted:', alertId);

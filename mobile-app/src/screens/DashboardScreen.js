@@ -9,6 +9,7 @@ export default function DashboardScreen({ navigation }) {
     const [isArmed, setIsArmed] = useState(true);
     const [systemStatus, setSystemStatus] = useState('OFFLINE');
     const [latestAlert, setLatestAlert] = useState(null);
+    const [lastHeartbeat, setLastHeartbeat] = useState(0);
 
     useEffect(() => {
         // 1. Listen for System Arm Status
@@ -17,19 +18,11 @@ export default function DashboardScreen({ navigation }) {
             setIsArmed(snapshot.exists() ? snapshot.val() : true);
         });
 
-        // 2. Listen for System Heartbeat (determined by checking a timestamp, mock for now or real if implemented)
-        // For now, we'll assume online if we can read DB. In a real app, the python bridge should write to 'status/heartbeat'
+        // 2. Listen for System Heartbeat
         const statusRef = ref(database, 'status/heartbeat');
         const unsubStatus = onValue(statusRef, (snapshot) => {
             if (snapshot.exists()) {
-                const lastHeartbeat = snapshot.val();
-                const now = Date.now() / 1000;
-                // If heartbeat is within last 2 minutes, it's online
-                if (now - lastHeartbeat < 120) {
-                    setSystemStatus('ONLINE');
-                } else {
-                    setSystemStatus('OFFLINE');
-                }
+                setLastHeartbeat(snapshot.val());
             }
         });
 
@@ -41,6 +34,8 @@ export default function DashboardScreen({ navigation }) {
                 const data = snapshot.val();
                 const key = Object.keys(data)[0];
                 setLatestAlert({ id: key, ...data[key] });
+            } else {
+                setLatestAlert(null);
             }
         });
 
@@ -50,6 +45,24 @@ export default function DashboardScreen({ navigation }) {
             unsubAlert();
         };
     }, []);
+
+    // Check online status periodically
+    useEffect(() => {
+        const checkStatus = () => {
+            const now = Date.now() / 1000;
+            // Threshold = 20s (15s heartbeat interval + 5s buffer)
+            if (lastHeartbeat > 0 && (now - lastHeartbeat < 20)) {
+                setSystemStatus('ONLINE');
+            } else {
+                setSystemStatus('OFFLINE');
+            }
+        };
+
+        const interval = setInterval(checkStatus, 2000); // Check every 2 seconds
+        checkStatus(); // Initial check
+
+        return () => clearInterval(interval);
+    }, [lastHeartbeat]);
 
     const toggleArm = () => {
         const newValue = !isArmed;
