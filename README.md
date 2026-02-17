@@ -47,6 +47,8 @@ graph TD
 
 ## 🚀 Setting Up the Project
 
+> **Need a quick start?** Check out the [Manual Start Guide](PROJECT_MANUAL_START.md) for step-by-step commands to run the backend components.
+
 ### Hardware Prerequisites
 *   ESP32-CAM (AI-Thinker)
 *   FTDI USB-to-TTL Adapter

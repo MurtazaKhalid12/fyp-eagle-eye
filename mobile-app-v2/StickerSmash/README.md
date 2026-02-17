@@ -2,36 +2,26 @@
 
 This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
 
-## Run on Android Device via USB (ADB)
-This is the fastest and most stable way to develop.
+## Get started
 
-### 1. Enable Developer Options on Android
-1.  Go to **Settings > About Phone**.
-2.  Tap **Build Number** 7 times until it says "You are a developer".
-3.  Go back to **Settings > System > Developer Options**.
-4.  Enable **USB Debugging**.
+1. Install dependencies
 
-### 2. Connect & Verify
-1.  Plug your phone into the PC via USB.
-2.  Tap "Allow USB Debugging" on your phone if prompted.
-3.  Run this in your terminal to verify connection:
-    ```bash
-    adb devices
-    ```
-    *You should see your device ID listed.*
+   ```bash
+   npm install
+   ```
 
-### 3. Setup Port Forwarding
-This allows your phone to access the Expo server running on your PC's `localhost`.
-```bash
-adb reverse tcp:8081 tcp:8081
-```
+2. Start the app
 
-### 4. Start the App
-Run the android script, which auto-detects the connected device:
-```bash
-npm run android
-```
-*This will open the Expo Go app on your phone and load the bundle.*
+   ```bash
+   npx expo start
+   ```
+
+In the output, you'll find options to open the app in a
+
+- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
+- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
+- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
+- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
 
 You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
 

@@ -1,23 +1,42 @@
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, View } from 'react-native';
-import GalleryScreen from './src/screens/GalleryScreen';
-
+import { StyleSheet } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { NavigationContainer } from '@react-navigation/native';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { Ionicons } from '@expo/vector-icons';
+
+import GalleryScreen from './src/screens/GalleryScreen';
+import DashboardScreen from './src/screens/DashboardScreen';
+
+const Tab = createBottomTabNavigator();
 
 export default function App() {
     return (
         <SafeAreaProvider>
-            <View style={styles.container}>
-                <StatusBar style="auto" />
-                <GalleryScreen />
-            </View>
+            <NavigationContainer>
+                <Tab.Navigator
+                    screenOptions={({ route }) => ({
+                        headerShown: false,
+                        tabBarIcon: ({ focused, color, size }) => {
+                            let iconName;
+
+                            if (route.name === 'Dashboard') {
+                                iconName = focused ? 'home' : 'home-outline';
+                            } else if (route.name === 'Gallery') {
+                                iconName = focused ? 'images' : 'images-outline';
+                            }
+
+                            return <Ionicons name={iconName} size={size} color={color} />;
+                        },
+                        tabBarActiveTintColor: '#D32F2F',
+                        tabBarInactiveTintColor: 'gray',
+                    })}
+                >
+                    <Tab.Screen name="Dashboard" component={DashboardScreen} />
+                    <Tab.Screen name="Gallery" component={GalleryScreen} />
+                </Tab.Navigator>
+            </NavigationContainer>
+            <StatusBar style="auto" />
         </SafeAreaProvider>
     );
 }
-
-const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: '#ebe7e7ff',
-    },
-});
