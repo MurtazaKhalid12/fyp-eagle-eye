@@ -7,6 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import GalleryScreen from './src/screens/GalleryScreen';
 import DashboardScreen from './src/screens/DashboardScreen';
+import IntrusionStatsScreen from './src/screens/IntrusionStatsScreen';
 
 const Tab = createBottomTabNavigator();
 
@@ -22,6 +23,8 @@ export default function App() {
 
                             if (route.name === 'Dashboard') {
                                 iconName = focused ? 'home' : 'home-outline';
+                            } else if (route.name === 'Stats') {
+                                iconName = focused ? 'stats-chart' : 'stats-chart-outline';
                             } else if (route.name === 'Gallery') {
                                 iconName = focused ? 'images' : 'images-outline';
                             }
@@ -33,6 +36,7 @@ export default function App() {
                     })}
                 >
                     <Tab.Screen name="Dashboard" component={DashboardScreen} />
+                    <Tab.Screen name="Stats" component={IntrusionStatsScreen} />
                     <Tab.Screen name="Gallery" component={GalleryScreen} />
                 </Tab.Navigator>
             </NavigationContainer>

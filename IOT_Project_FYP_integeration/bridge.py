@@ -75,15 +75,41 @@ def system_monitor():
     db.reference('config/armed').listen(on_armed_change)
     
     # 2. Heartbeat Loop
+    # 2. Heartbeat & Cleanup Loop
+    last_heartbeat = 0
     while True:
+        current_time = time.time()
+        
+        # Heartbeat every 15s
+        if current_time - last_heartbeat > 15:
+            try:
+                db.reference('status/heartbeat').set(int(current_time))
+                last_heartbeat = current_time
+            except Exception as e:
+                print(f"Heartbeat Error: {e}")
+
+        # Cleanup Check every 5s
         try:
-            # Update heartbeat timestamp
-            db.reference('status/heartbeat').set(int(time.time()))
-            # print("Keep-alive sent.") 
-            time.sleep(60) # Every 60 seconds
+            requests = db.reference('deletion_requests').get()
+            if requests:
+                print(f"Found {len(requests)} deletion requests.")
+                for req_key, req_data in requests.items():
+                    req_public_id = req_data.get('public_id') if isinstance(req_data, dict) else req_data
+
+                    if req_public_id:
+                        print(f"Processing deletion: {req_public_id}...")
+                        try:
+                            cloudinary.uploader.destroy(req_public_id)
+                            print(f"Deleted from Cloudinary: {req_public_id}")
+                        except Exception as c_err:
+                            print(f"Cloudinary Delete Error: {c_err}")
+                    
+                    # Remove processed request
+                    db.reference(f'deletion_requests/{req_key}').delete()
         except Exception as e:
-            print(f"Heartbeat Error: {e}")
-            time.sleep(60)
+            print(f"Cleanup Error: {e}")
+            
+        time.sleep(5)
 
 def on_message(client, userdata, msg):
 
@@ -134,6 +160,7 @@ def on_message(client, userdata, msg):
         print("Uploading to Cloudinary...")
         upload_result = cloudinary.uploader.upload(filename, folder="eagleeye_intrusions")
         public_url = upload_result.get("secure_url")
+        public_id = upload_result.get("public_id")
         print(f"Image Uploaded: {public_url}")
         
         # 4. Log to Realtime Database
@@ -141,6 +168,7 @@ def on_message(client, userdata, msg):
         ref.push({
             'timestamp': timestamp,
             'image_url': public_url,
+            'public_id': public_id,
             'type': 'Human Detected'
         })
         print("Alert logged to Realtime Database.")
