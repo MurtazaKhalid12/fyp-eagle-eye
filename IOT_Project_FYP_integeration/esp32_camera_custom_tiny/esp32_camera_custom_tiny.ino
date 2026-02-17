@@ -18,8 +18,15 @@
 // --- INCLUDE WEB SERVER HEADER ---
 #include "camera_web_server.h"
 
-// --- CONFIGURATION ---
 #define CLEAR_SCENE_FRAMES 20         // ~20 consecutive "no human" frames = person left
+
+// --- CONFIGURATION ---
+// High Quality Square Crop Mode
+// 1. Capture at 320x240 (QVGA)
+// 2. Crop the center 240x240 to make it SQUARE (No distortion)
+// 3. Resize to 48x48
+// RESULT: No "squishing" distortion + sharper details.
+
 
 // --- PINS (AI THINKER) ---
 #define PWDN_GPIO_NUM     32
@@ -88,14 +95,26 @@ void setup_camera_ai() {
   Serial.println("Camera initialized: RGB565 QVGA (320x240) - software greyscale for AI");
 }
 
-// --- RESIZE RGB565 -> GREYSCALE (320x240 -> 48x48x1) ---
-// Captures in RGB565 (reliable) but converts to greyscale for the model
+// NEW RESIZE FUNCTION: Square Crop -> Resize
+// Converts 320x240 (QVGA) -> Crop Center 240x240 -> Resize to 48x48
+// NOTE: src is RGB565 (2 bytes per pixel)
 void resize_rgb565_to_greyscale(uint8_t *src, int src_w, int src_h, int8_t *dst, int dst_w, int dst_h) {
+    
+    // 1. Define SQUARE crop window
+    int crop_h = src_h;             // 240
+    int crop_w = src_h;             // 240 (Make it square)
+    int offset_x = (src_w - crop_w) / 2; // (320-240)/2 = 40 pixels offset
+
     for (int y = 0; y < dst_h; y++) {
         for (int x = 0; x < dst_w; x++) {
-            int src_x = x * src_w / dst_w;
-            int src_y = y * src_h / dst_h;
+            // Map 48x48 -> 240x240 Crop
+            int src_x = offset_x + (x * crop_w / dst_w);
+            int src_y = (y * crop_h / dst_h);
             
+            // Bounds check (just in case)
+            if (src_x >= src_w) src_x = src_w - 1;
+            if (src_y >= src_h) src_y = src_h - 1;
+
             // Get RGB565 pixel (2 bytes)
             int src_idx = (src_y * src_w + src_x) * 2;
             uint16_t pixel = (src[src_idx] << 8) | src[src_idx + 1];
@@ -128,6 +147,7 @@ void setup() {
   Serial.println("\n\n=================================================");
   Serial.println(">>> EAGLEEYE: AI DETECTION SYSTEM <<<");
   Serial.println(">>> Greyscale Model (48x48x1) <<<");
+  Serial.println(">>> MODE: High Quality Square Crop (Corrects Distortion) <<<");
   Serial.println("=================================================\n");
   
   // 3. Initialize WiFi & MQTT (from EagleEye_IoT.h)
