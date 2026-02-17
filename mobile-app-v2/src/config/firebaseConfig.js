@@ -2,8 +2,6 @@
 import { initializeApp } from "firebase/app";
 import { getDatabase } from "firebase/database";
 
-// TODO: Replace the following with your app's Firebase project configuration
-// You can get this from the Firebase Console > Project Settings > General > Your apps > Web app
 const firebaseConfig = {
     apiKey: "AIzaSyDRUXoPveXHlMq-PqLEV4As7Ag-6NSPSuk",
     authDomain: "fyproject-2d3f6.firebaseapp.com",

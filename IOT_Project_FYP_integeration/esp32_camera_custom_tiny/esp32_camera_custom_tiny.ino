@@ -5,12 +5,20 @@
 #include "tensorflow/lite/micro/micro_error_reporter.h"
 #include "tensorflow/lite/micro/micro_interpreter.h"
 #include "tensorflow/lite/schema/schema_generated.h"
+#include "esp_sleep.h"
+#include "SD_MMC.h"
+#include "driver/gpio.h"
 
 // --- INCLUDE YOUR NEW HEADER FILE ---
 #include "human_detect_model_data.h"
 
 // --- INCLUDE IOT HEADER ---
 #include "EagleEye_IoT.h"
+
+// --- PIR SENSOR & DEEP SLEEP CONFIG ---
+#define PIR_PIN GPIO_NUM_14           // HW-416B data out (GPIO 2/13 have board pull-ups!)
+#define SLEEP_TIMEOUT_MS 30000        // Go to sleep after 30s of no human
+#define CLEAR_SCENE_FRAMES 20         // ~20 consecutive "no human" frames = person left
 
 // --- PINS (AI THINKER) ---
 #define PWDN_GPIO_NUM     32
@@ -110,19 +118,67 @@ void resize_rgb565_to_greyscale(uint8_t *src, int src_w, int src_h, int8_t *dst,
     }
 }
 
+// --- Print why the ESP32 woke up ---
+void print_wakeup_reason() {
+  esp_sleep_wakeup_cause_t reason = esp_sleep_get_wakeup_cause();
+  switch(reason) {
+    case ESP_SLEEP_WAKEUP_EXT0:
+      Serial.println(">>> WAKEUP: PIR Motion Detected! <<<");
+      break;
+    case ESP_SLEEP_WAKEUP_TIMER:
+      Serial.println(">>> WAKEUP: Timer <<<");
+      break;
+    default:
+      Serial.println(">>> WAKEUP: Power ON / Reset <<<");
+      break;
+  }
+}
+
+// --- Enter deep sleep ---
+void enter_deep_sleep() {
+  Serial.println("\n========================================");
+  Serial.println("   NO ACTIVITY - ENTERING DEEP SLEEP");
+  Serial.println("   Waiting for PIR motion on GPIO 14...");
+  Serial.println("========================================\n");
+  
+  // Deinit camera to free resources
+  esp_camera_deinit();
+  
+  // Configure GPIO 13 as wake-up source (HIGH = motion detected)
+  esp_sleep_enable_ext0_wakeup(PIR_PIN, 1);
+  
+  delay(500); // Let serial flush
+  esp_deep_sleep_start();
+  // *** ESP32 is now OFF — execution stops here ***
+  // *** It will restart from setup() when PIR triggers ***
+}
+
 void setup() {
   // 1. Initialize Serial
-  delay(3000); // Wait for Serial Monitor
+  delay(2000); // Wait for Serial Monitor
   Serial.begin(115200);
   Serial.println("\n\n=================================================");
-  Serial.println(">>> TINY GRAYSCALE MODEL (48x48x1) FAST MODE <<<");
-  Serial.println(">>> Optimized for Speed on ESP32 <<<");
+  Serial.println(">>> EAGLEEYE: PIR + AI DETECTION SYSTEM <<<");
+  Serial.println(">>> Greyscale Model (48x48x1) + Deep Sleep <<<");
   Serial.println("=================================================\n");
+  
+  // 2. Disable SD Card to free GPIO 2 for PIR sensor
+  SD_MMC.end();
+  gpio_reset_pin(GPIO_NUM_2);
+  gpio_reset_pin(GPIO_NUM_12);
+  gpio_reset_pin(GPIO_NUM_13);
+  gpio_reset_pin(GPIO_NUM_14);
+  gpio_reset_pin(GPIO_NUM_15);
+  pinMode(PIR_PIN, INPUT_PULLDOWN);  // Counteract board pull-ups
+  Serial.println("SD Card disabled - GPIO 2 freed for PIR sensor");
+  
+  // 3. Print wake-up reason
+  print_wakeup_reason();
 
-  // 2. Initialize WiFi & MQTT (from EagleEye_IoT.h)
+  // 3. Initialize WiFi & MQTT (from EagleEye_IoT.h)
   init_wifi_mqtt();
 
-  // 3. Initialize Memory for TFLite
+  // 4. Initialize Memory for TFLite
   if (psramFound()) {
       tensor_arena = (uint8_t*)ps_malloc(TENSOR_ARENA_SIZE);
       Serial.printf("PSRAM found! Free: %d bytes\n", ESP.getFreePsram());
@@ -135,17 +191,17 @@ void setup() {
     return;
   }
 
-  // 4. Initialize Camera (GRAYSCALE mode)
+  // 5. Initialize Camera
   setup_camera_ai();
 
-  // 5. Load Model
+  // 6. Load Model
   model = tflite::GetModel(g_human_detect_model_data); 
   if (model->version() != TFLITE_SCHEMA_VERSION) {
     Serial.println("Model Schema Error"); 
     return;
   }
 
-  // 6. Setup Interpreter
+  // 7. Setup Interpreter
   static tflite::AllOpsResolver resolver;
   static tflite::MicroInterpreter static_interpreter(
       model, resolver, tensor_arena, TENSOR_ARENA_SIZE, error_reporter);
@@ -160,11 +216,14 @@ void setup() {
   output = interpreter->output(0);
   
   Serial.printf("Model input: %dx%dx%d (int8)\n", IMG_WIDTH, IMG_HEIGHT, IMG_CHANNELS);
-  Serial.println("System Ready! GRAYSCALE mode - Listening for targets...");
+  Serial.println("System Ready! Scanning for humans...\n");
 }
 
-// --- FRAME COUNTER FOR PERIODIC STATUS ---
+// --- STATE TRACKING ---
 static unsigned long frame_count = 0;
+static unsigned long last_human_seen = 0;    // Timestamp of last human detection
+static bool image_sent_this_event = false;   // Only send ONE image per intrusion
+static int clear_scene_count = 0;            // Consecutive frames with no human
 
 void loop() {
   // 1. Maintain MQTT Connection
@@ -199,38 +258,59 @@ void loop() {
   
   frame_count++;
 
-  // 6. ALWAYS print detection status (continuous monitoring)
-  // THRESHOLD: > 10 in int8 range [-128..127]
-  // Non-human scores typically: -40 to -110 (well below threshold)
-  // Human scores typically: +48 to +94 (well above threshold)
-  // Gap between classes is ~91 points, threshold at 10 gives safe margin
   bool human_detected = (human_score > non_human_score && human_score > 10);
   
   if (human_detected) {
     Serial.printf("[FRAME %lu] >>> HUMAN DETECTED! <<< | Score: Human=%d, Non=%d | %dms\n",
                   frame_count, human_score, non_human_score, inference_ms);
+    
+    last_human_seen = millis();
+    clear_scene_count = 0;  // Reset clear counter
+    
+    // --- TRIGGER ONCE PER EVENT ---
+    // Send only ONE image per intrusion event
+    if (!image_sent_this_event) {
+        Serial.println("========================================");
+        Serial.println("   HUMAN CONFIRMED - CAPTURING IMAGE!   ");
+        Serial.println("========================================");
+        
+        capture_and_send_image(NULL, 0, 0);
+        image_sent_this_event = true;  // Don't send again until scene clears
+        
+        Serial.println("Image sent! Monitoring until person leaves...\n");
+    }
   } else {
-    Serial.printf("[FRAME %lu]     No Human           | Score: Human=%d, Non=%d | %dms\n",
-                  frame_count, human_score, non_human_score, inference_ms);
+    // No human in this frame
+    clear_scene_count++;
+    
+    // Print status every 10th frame to reduce serial spam
+    if (frame_count % 10 == 0) {
+      Serial.printf("[FRAME %lu]     Monitoring... | Score: H=%d, N=%d | %dms\n",
+                    frame_count, human_score, non_human_score, inference_ms);
+    }
+    
+    // --- SCENE CLEARED: Person has left ---
+    // If we had sent an image and now see no human for CLEAR_SCENE_FRAMES
+    if (image_sent_this_event && clear_scene_count >= CLEAR_SCENE_FRAMES) {
+      Serial.println(">>> Scene cleared! Person has left. Re-armed for next detection.");
+      image_sent_this_event = false;  // Re-arm for next person
+    }
   }
 
-  // 7. Capture & Send Image ONLY when human detected (with cooldown)
-  static unsigned long last_trigger = 0;
+  // --- DEEP SLEEP CHECK ---
+  // If no human detected for SLEEP_TIMEOUT_MS, go to deep sleep
+  unsigned long idle_time = millis() - last_human_seen;
+  if (last_human_seen > 0 && idle_time > SLEEP_TIMEOUT_MS && !image_sent_this_event) {
+    Serial.printf("No human for %lu seconds. Entering deep sleep...\n", idle_time / 1000);
+    enter_deep_sleep();
+  }
   
-  if (human_detected) {
-      if (millis() - last_trigger > 5000) {  // 5 second cooldown
-          Serial.println("========================================");
-          Serial.println("   CAPTURING IMAGE FOR UPLOAD!          ");
-          Serial.println("========================================");
-          
-          // Captures frame -> converts to JPEG -> sends via MQTT
-          capture_and_send_image(NULL, 0, 0);
-          
-          last_trigger = millis();
-          Serial.println("Resuming continuous detection...\n");
-      }
+  // Also sleep if we never detected anyone after initial scan period
+  if (last_human_seen == 0 && millis() > SLEEP_TIMEOUT_MS) {
+    Serial.println("No humans found during initial scan. Entering deep sleep...");
+    enter_deep_sleep();
   }
 
-  // Small delay to avoid flooding Serial too fast
+  // Small delay
   delay(50);
 }

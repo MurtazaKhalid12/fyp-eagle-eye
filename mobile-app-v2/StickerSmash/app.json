@@ -1,14 +1,13 @@
 {
   "expo": {
-    "name": "mobile-app",
-    "slug": "mobile-app",
+    "name": "StickerSmash",
+    "slug": "StickerSmash",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "mobileapp",
+    "scheme": "stickersmash",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": false,
-    "jsEngine": "hermes",
+    "newArchEnabled": true,
     "ios": {
       "supportsTablet": true
     },
@@ -23,10 +22,11 @@
       "predictiveBackGestureEnabled": false
     },
     "web": {
-      "output": "single",
+      "output": "static",
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
+      "expo-router",
       [
         "expo-splash-screen",
         {
@@ -40,8 +40,9 @@
         }
       ]
     ],
-    "updates": {
-      "enabled": false
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
     }
   }
 }

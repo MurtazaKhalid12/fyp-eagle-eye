@@ -6,6 +6,7 @@ import cloudinary.uploader
 import base64
 import time
 import os
+import threading
 
 # --- CONFIGURATION ---
 # --- CONFIGURATION ---
@@ -57,10 +58,43 @@ def on_connect(client, userdata, flags, rc, properties):
 def on_subscribe(client, userdata, mid, reason_code_list, properties):
     print(f"Subscribed to topic! QoS: {reason_code_list[0]}")
 
+# --- GLOBAL STATE ---
+IS_ARMED = True # Default to True until Firebase says otherwise
+
+# --- BACKGROUND HEARTBEAT & CONFIG LISTENER ---
+def system_monitor():
+    global IS_ARMED
+    
+    # 1. Listen for Arm/Disarm changes
+    def on_armed_change(event):
+        global IS_ARMED
+        if isinstance(event.data, bool):
+            IS_ARMED = event.data
+            print(f"*** SYSTEM CONFIG CHANGED: Armed = {IS_ARMED} ***")
+    
+    db.reference('config/armed').listen(on_armed_change)
+    
+    # 2. Heartbeat Loop
+    while True:
+        try:
+            # Update heartbeat timestamp
+            db.reference('status/heartbeat').set(int(time.time()))
+            # print("Keep-alive sent.") 
+            time.sleep(60) # Every 60 seconds
+        except Exception as e:
+            print(f"Heartbeat Error: {e}")
+            time.sleep(60)
+
 def on_message(client, userdata, msg):
+
     print(f"DEBUG: Received message on topic: '{msg.topic}'")
     if msg.topic != MQTT_TOPIC_IMAGE:
         print("Ignored non-image topic.")
+        return
+
+    # CHECK ARM STATUS
+    if not IS_ARMED:
+        print(">>> SYSTEM DISARMED: Ignoring intrusion detected. <<<")
         return
 
     print("Human Detected! Receiving Image Payload...")
@@ -128,6 +162,10 @@ client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
 client.on_connect = on_connect
 client.on_subscribe = on_subscribe
 client.on_message = on_message
+
+# Start Monitor Thread
+monitor_thread = threading.Thread(target=system_monitor, daemon=True)
+monitor_thread.start()
 
 print(f"Connecting to MQTT Broker: {MQTT_BROKER}...")
 try:
