@@ -13,7 +13,7 @@ import threading
 from dotenv import load_dotenv
 load_dotenv() # Load variables from .env
 
-MQTT_BROKER = "192.168.1.3"
+MQTT_BROKER = "10.42.41.29"
 MQTT_TOPIC_IMAGE = "eagleeye/camera/image"
 # IMPORTANT: Ensure this file exists in the same directory
 FIREBASE_KEY_PATH = "serviceAccountKey.json"
@@ -50,10 +50,13 @@ except Exception as e:
 # --- MQTT CALLBACKS ---
 def on_connect(client, userdata, flags, rc, properties):
     if rc == 0:
-        print("Bridge Connected to Local Mosquitto! Listening for intruders...")
+        print("\n" + "="*50)
+        print(">>> BRIDGE CONNECTED TO LOCAL BROKER! <<<")
+        print(">>> READY TO RELAY ALERTS & COMMANDS <<<")
+        print("="*50 + "\n")
         client.subscribe("#") # Debugging: Listen to EVERYTHING
     else:
-        print(f"Failed to connect to HiveMQ, return code {rc}")
+        print(f"Failed to connect to Broker, return code {rc}")
 
 def on_subscribe(client, userdata, mid, reason_code_list, properties):
     print(f"Subscribed to topic! QoS: {reason_code_list[0]}")
@@ -68,19 +71,48 @@ def system_monitor():
     # 1. Listen for Arm/Disarm changes
     def on_armed_change(event):
         global IS_ARMED
-        if isinstance(event.data, bool):
-            IS_ARMED = event.data
-            print(f"*** SYSTEM CONFIG CHANGED: Armed = {IS_ARMED} ***")
+        # Robustly handle boolean or 0/1 values
+        if event.data is not None:
+             # Convert 1/0/True/False to boolean
+            new_status = bool(event.data)
+            
+            # Only update/publish if changed (optional, but good practice)
+            if IS_ARMED != new_status:
+                IS_ARMED = new_status
+                print(f"*** SYSTEM CONFIG CHANGED: Armed = {IS_ARMED} ***")
+                
+                # PROPAGATE TO ESP32 via MQTT
+                # Payload: "1" for Armed, "0" for Disarmed
+                try:
+                    payload = "1" if IS_ARMED else "0"
+                    client.publish("eagleeye/camera/control", payload, retain=True)
+                    print(f"Sent MQTT Control Command: {payload}")
+                except Exception as e:
+                    print(f"Failed to publish control command: {e}")
     
     db.reference('config/armed').listen(on_armed_change)
     
     # 2. Heartbeat Loop
     # 2. Heartbeat & Cleanup Loop
     last_heartbeat = 0
+    last_config_sync = 0
+    
     while True:
         current_time = time.time()
         
-        # Heartbeat every 15s
+        # --- SYNC CONFIG TO ESP32 (Fixes Reboot Mismatch) ---
+        # Every 10 seconds, assume ESP32 might have rebooted and needs status
+        if current_time - last_config_sync > 10:
+            try:
+                payload = "1" if IS_ARMED else "0"
+                # retain=True ensures a new subscriber gets the last known good state immediately
+                client.publish("eagleeye/camera/control", payload, retain=True) 
+                # print(f"DEBUG: Auto-Sync Config -> {payload}") # Optional log
+                last_config_sync = current_time
+            except Exception as e:
+                print(f"Sync Publish Error: {e}")
+
+        # Heartbeat every 15s (Database)
         if current_time - last_heartbeat > 15:
             try:
                 db.reference('status/heartbeat').set(int(current_time))

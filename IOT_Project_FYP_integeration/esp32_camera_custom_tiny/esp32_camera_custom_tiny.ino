@@ -218,8 +218,27 @@ static bool image_sent_this_event = false;   // Only send ONE image per intrusio
 static int clear_scene_count = 0;            // Consecutive frames with no human
 
 void loop() {
-  // 1. Maintain MQTT Connection
+  // 1. Maintain MQTT Connection (Handles Incoming "Pause" Commands)
   update_mqtt();
+  
+  // CHECK: If System is PAUSED, do nothing
+  if (!is_system_armed) {
+      // Print status occasionally essentially acting as a heartbeat
+      static unsigned long last_pause_print = 0;
+      if (millis() - last_pause_print > 2000) {
+          Serial.println(">>> System PAUSED (Disarmed). Waiting for command... <<<");
+          last_pause_print = millis();
+      }
+      delay(500); 
+      return; // Skip the rest of the loop
+  } else {
+      // DEBUG: Print that we are ARMED occasionally
+      static unsigned long last_arm_print = 0;
+      if (millis() - last_arm_print > 5000) {
+          Serial.println(">>> System ARMED (Active) <<<"); 
+          last_arm_print = millis();
+      }
+  }
 
   // 2. Capture RGB565 Frame (always color - reliable on OV2640)
   camera_fb_t * fb = esp_camera_fb_get();

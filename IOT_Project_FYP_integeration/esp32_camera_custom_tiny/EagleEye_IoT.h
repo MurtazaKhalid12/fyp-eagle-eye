@@ -43,12 +43,66 @@ String msg_base64_encode(uint8_t *data, size_t len) {
   return result;
 }
 
+// --- CONTROL VARS ---
+bool is_system_armed = true; // Default to ARMED
+
+// --- MQTT CALLBACK ---
+// --- MQTT CALLBACK ---
+void mqtt_callback(char* topic, byte* payload, unsigned int length) {
+    // 1. SILENTLY IGNORE IMAGE UPLOADS
+    // Since we subscribe to "eagleeye/#", we also get our own image uploads.
+    // We do NOT want to print them to Serial Monitor as they are binary JPEGs.
+    if (strstr(topic, "/image") != NULL) {
+        return; 
+    }
+
+    // Construct message string
+    String message = "";
+    for (int i = 0; i < length; i++) {
+        message += (char)payload[i];
+    }
+    message.trim(); 
+    String msg_lower = message;
+    msg_lower.toLowerCase();
+
+    // Check Control Topic
+    if (strcmp(topic, "eagleeye/camera/control") == 0) {
+        Serial.print(">>> COMMAND RECEIVED: "); Serial.println(message);
+
+        if (msg_lower == "1" || msg_lower == "true" || msg_lower == "on") {
+            is_system_armed = true;
+            Serial.println(">>> SYSTEM ARMED (Active) <<<");
+        } 
+        else if (msg_lower == "0" || msg_lower == "false" || msg_lower == "off") {
+            is_system_armed = false;
+            Serial.println(">>> SYSTEM PAUSED (DISARMED) <<<");
+        }
+        else {
+            Serial.println(">>> WARNING: Unknown Command <<<");
+        }
+    } 
+}
+
 // --- MQTT RECONNECT ---
 void mqtt_reconnect() {
   while (!client.connected()) {
     Serial.print("Attempting MQTT connection...");
-    if (client.connect("ESP32CameraClient")) {
+    
+    // Create a random client ID
+    String clientId = "ESP32-EagleEye-";
+    clientId += String(random(0xffff), HEX);
+    
+    if (client.connect(clientId.c_str())) {
       Serial.println("connected");
+      Serial.print("Client ID: "); Serial.println(clientId);
+      
+      // DEBUG: Subscribe to ALL eagleeye topics to find the correct one
+      if (client.subscribe("eagleeye/#")) { 
+          Serial.println("DEBUG: SUBSCRIBED to 'eagleeye/#' (Wildcard Mode)");
+      } else {
+          Serial.println("DEBUG: Subscription FAILED!");
+      }
+      
     } else {
       Serial.print("failed, rc=");
       Serial.print(client.state());
@@ -69,6 +123,7 @@ void init_wifi_mqtt() {
     Serial.print("Connecting to MQTT Broker at: ");
     Serial.println(mqtt_server_iot);
     client.setServer(mqtt_server_iot, 1883);
+    client.setCallback(mqtt_callback); // Set Callback
     client.setBufferSize(51200); // 50KB buffer for COLOR JPEG images
     
     // Initialize flashlight pin
@@ -79,6 +134,7 @@ void init_wifi_mqtt() {
 
 // --- KEEP ALIVE ---
 void update_mqtt() {
+    if (!client.connected()) mqtt_reconnect();
     client.loop();
 }
 
@@ -86,6 +142,12 @@ void update_mqtt() {
 // Camera is in RGB565 mode permanently (greyscale conversion done in software for AI).
 // Capture RGB565 frame -> convert to COLOR JPEG -> send via MQTT
 void capture_and_send_image(uint8_t *img_buf, int w, int h) {
+    // SECURITY CHECK: Do not capture if paused
+    if (!is_system_armed) {
+        Serial.println("BLOCKED: Capture attempted while system PAUSED/DISARMED.");
+        return;
+    }
+
     Serial.println("Human detected! Capturing COLOR image for upload...");
     
     // TURN ON FLASHLIGHT for better image quality

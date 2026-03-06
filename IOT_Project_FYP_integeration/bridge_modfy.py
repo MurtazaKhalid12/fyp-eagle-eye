@@ -12,7 +12,7 @@ import os
 from dotenv import load_dotenv
 load_dotenv() # Load variables from .env
 
-MQTT_BROKER = "192.168.1.3"
+MQTT_BROKER = "10.42.41.29"
 MQTT_TOPIC_IMAGE = "eagleeye/camera/image"
 # IMPORTANT: Ensure this file exists in the same directory
 FIREBASE_KEY_PATH = "serviceAccountKey.json"
