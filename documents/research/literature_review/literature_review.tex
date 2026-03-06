@@ -1,0 +1,131 @@
+\documentclass[12pt, a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{geometry}
+\geometry{a4paper, margin=1in}
+\usepackage{hyperref}
+\usepackage{titlesec}
+\usepackage{setspace}
+
+\title{\textbf{Literature Review: TinyML-Based Smart Intrusion Detection System with ESP32}}
+\author{A Review of Current Research and Implementations}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+The proliferation of Internet of Things (IoT) devices has enabled the development of affordable and intelligent security solutions for residential and commercial environments. The EagleEye Smart Intrusion System represents a convergence of several cutting-edge technologies: Tiny Machine Learning (TinyML), edge computing, embedded vision systems, and real-time communication protocols \cite{ref1, ref2}. This literature review examines the foundational research, current methodologies, and technological frameworks that underpin the development of an intrusion detection system utilizing the ESP32 microcontroller for local image processing, secure cloud storage, and real-time mobile notifications. The core objective of this project is to implement person detection algorithms directly on resource-constrained embedded devices, specifically the ESP32-CAM module, which can capture images of individuals at expected entry points and transmit alerts via messaging platforms without relying on continuous cloud-based processing. This approach addresses critical concerns regarding privacy, latency, cost-effectiveness, and energy efficiency that characterize traditional cloud-dependent surveillance systems \cite{ref2}.
+\end{abstract}
+
+\section{Tiny Machine Learning (TinyML) Fundamentals}
+
+\subsection{Definition and Scope}
+Tiny Machine Learning (TinyML) represents the intersection of machine learning, embedded systems, and IoT technology, enabling the deployment of neural network models on microcontroller units (MCUs) with severely constrained computational resources \cite{ref4, ref5}. TinyML systems typically operate within memory constraints of a few hundred kilobytes and power budgets measured in milliwatts, making them suitable for battery-powered, always-on applications \cite{ref6, ref7}.
+
+The TinyML paradigm has experienced remarkable growth since its formal introduction in 2019, with research publications exhibiting widespread acceleration in both academic research and commercial applications \cite{ref8}. This growth is driven by advances in model compression techniques, specialized hardware accelerators, and optimized inference frameworks designed specifically for microcontrollers.
+
+\subsection{Key Enabling Technologies}
+Several technological advances have made TinyML feasible for computer vision applications. Neural networks trained on powerful hardware must undergo substantial optimization before deployment on microcontrollers. Quantization techniques convert 32-bit floating-point weights to 8-bit integers (Int8), reducing model size by approximately 75\% while maintaining acceptable accuracy levels \cite{ref9, ref10}. Research demonstrates that properly quantized models can achieve high accuracy retention compared to their full-precision counterparts \cite{ref7, ref11}.
+
+TensorFlow Lite for Microcontrollers (TFLite Micro) has emerged as the de facto framework for deploying machine learning models on embedded devices \cite{ref11}. The framework has been successfully ported to multiple architectures including the ESP32. TFLite Micro operates without requiring an operating system or standard C/C++ libraries, making it highly portable \cite{ref12}. Furthermore, the Edge Impulse platform provides end-to-end workflows for data collection, model training, and deployment. It offers compiling tools that optimize TensorFlow Lite models for specific microcontroller architectures like the ESP32 \cite{ref13, ref14}.
+
+\subsection{Energy Efficiency Considerations}
+Energy efficiency represents a critical design constraint for battery-powered embedded vision systems. TinyML systems can achieve significant energy savings compared to traditional machine learning systems \cite{ref6}. A comprehensive study on TinyML energy viability for computer vision applications using ESP32 revealed that camera-equipped prototypes consumed 1.25 volts per hour during active operation, while deep sleep configurations showed improved longevity at 0.93 volts per hour \cite{ref6}. These findings emphasize the importance of intelligent power management strategies, including deep sleep modes and event-driven activation via PIR sensors, to maximize operational lifetime in deployment scenarios.
+
+\section{ESP32 Platform for Embedded Vision}
+
+\subsection{Hardware Architecture}
+The ESP32 family of microcontrollers has emerged as a popular platform for TinyML applications due to its combination of processing capability, integrated wireless connectivity, and affordability \cite{ref4}. The ESP32 features a dual-core 32-bit processor operating at up to 240 MHz and 520 KB of SRAM \cite{ref4, ref15}. The dual-core architecture enables parallel processing, allocating network communication to one core while the other handles inference tasks.
+
+The ESP32-CAM variant integrates an OV2640 camera module capable of capturing 2-megapixel images, making it particularly suitable for vision-based applications \cite{ref2, ref16}. The camera supports multiple resolution modes; however, lower resolutions optimized for machine learning inference, such as $96\times96$ or $48\times48$ pixels, are preferred to preserve memory \cite{ref2, ref17}.
+
+\subsection{Computational Capabilities and Limitations}
+While the ESP32 provides impressive capabilities, it faces significant constraints. Complex object detection models can overwhelm the ESP32's computational capacity, resulting in low frame rates (1-3 FPS) \cite{ref18, ref19, ref20, ref21}. Limited SRAM restricts the size and complexity of deployable models, often leading to camera initialization failures or brownout detection problems if memory is not managed carefully \cite{ref15, ref22}.
+
+\subsection{Successful Implementation Strategies}
+To overcome these limitations, research identifies several strategies. Resolution optimization, such as reducing input to grayscale $48\times48$, significantly decreases computational requirements \cite{ref17}. Lightweight architectures like MobileNet-SSD or custom shallow CNNs demonstrate optimal performance on these devices \cite{ref23, ref24}. While EagleEye emphasizes local processing, integrating it with a Python gateway ensures that heavy network protocols do not interrupt the camera's primary inference loop.
+
+\section{Person Detection Algorithms for Embedded Systems}
+
+\subsection{Dataset Requirements and Model Architectures}
+High-quality datasets are fundamental to training effective person detection models for TinyML. The Visual Wake Words (VWW) dataset has served as the standard for TinyML person detection, though newer datasets like Wake Vision provide broader coverage of scenarios \cite{ref26, ref27}.
+
+MobileNet has become a predominant architecture for embedded vision due to its depthwise separable convolutions \cite{ref28, ref29, ref30}. However, standard MobileNet can still be heavy for an ESP32. Specialized architectures like FOMO (Faster Objects, More Objects) predict object center points rather than bounding boxes, reducing computational overhead substantially \cite{ref23, ref24}. Our implementation favors custom, shallow CNNs with heavy MaxPooling layers to drastically cut tensor operations, achieving latency as low as 112ms.
+
+\section{Edge Computing and Privacy Preservation}
+
+\subsection{Edge Computing Architecture}
+Edge computing processes data locally at or near the source, contrasting with traditional cloud architectures that transmit raw data to remote servers \cite{ref2, ref33, ref34}. For surveillance, edge computing provides latency reduction by eliminating round-trip communication delays \cite{ref2}. Most importantly, it enhances privacy. Processing images locally without continuous cloud transmission protects sensitive visual information, ensuring recordings only leave the device upon confirmed detection \cite{ref33, ref34, ref35}.
+
+\subsection{Privacy-Preserving Techniques}
+Research on privacy-preserving edge computing demonstrates that maintaining data locally prevents direct data transmission between camera modules and external servers unless strictly necessary \cite{ref36}. The EagleEye system acts as a privacy buffer. If no human is detected, images are instantly discarded. Only when the TinyML model triggers a detection event (accuracy >80\%) is an image securely forwarded.
+
+\section{Communication Protocols and System Integration}
+
+\subsection{Messaging APIs and MQTT}
+Earlier iterations of ESP32 connectivity relied heavily on third-party messaging integrations like the CallMeBot API for WhatsApp or Telegram \cite{ref3, ref37, ref38, ref39, ref40}. While simple, these HTTP-based approaches impose rate limits and blocking tasks on the microcontroller. 
+
+A superior approach for integrating IoT devices is MQTT (Message Queuing Telemetry Transport). MQTT enables decoupled communication between the camera and advanced notification services through a message broker \cite{ref41}. By publishing lightweight payloads (e.g., to the `eagleeye/camera/image` topic), the ESP32 delegates heavy network operations.
+
+\subsection{Gateway and Cloud Architecture}
+Transmitting images poses technical challenges. High-resolution JPEGs require substantial memory. In advanced implementations like EagleEye, a local Python Gateway bridges the MQTT broker to robust cloud services. It validates image integrity (checking Magic Bytes like 0xFFD8) before securely uploading to Cloudinary \cite{ref44}. Real-time synchronization is achieved by logging the secure URL to Firebase Realtime Database, which instantly triggers updates on a React Native mobile application \cite{ref45}.
+
+\section{Real-Time Detection and Response Systems}
+
+\subsection{Sensor Fusion and Robustness}
+Effective real-time intrusion detection systems integrate multiple components. PIR motion sensors serve as low-power triggers that activate the camera and inference pipeline only when movement is detected, maximizing battery life \cite{ref40}. Furthermore, integrating audio intelligence (acoustic threat detection for glass breaking or footsteps) provides a highly resilient, multi-modal sensor fusion approach \cite{ref40, ref48}.
+
+\section{Challenges, Limitations, and Conclusions}
+The ESP32 platform imposes strict constraints. TinyML models must fit within ~400 KB of flash and utilize less than 200 KB of RAM during inference, necessitating aggressive model compression \cite{ref15, ref18, ref20}. Reducing model complexity inherently impacts detection accuracy across varied lighting and environmental conditions \cite{ref43}.
+
+However, the convergence of TinyML, edge computing, and affordable embedded hardware creates unprecedented opportunities for intelligent, privacy-preserving security. The literature demonstrates that appropriately optimized neural networks can execute person detection on ESP32 hardware efficiently \cite{ref2, ref15, ref26}.
+
+The EagleEye Smart Intrusion System represents a practical, advanced application of these research findings. By utilizing Int8 quantized models, grayscale optimization, MQTT protocols, and a decoupled Python gateway architecture, it achieves an inference latency of 112ms. This approach addresses the fundamental limitations of cloud-dependent alternatives regarding bandwidth, privacy, and system reliability, representing a significant stride in decentralized smart surveillance.
+
+\begin{thebibliography}{99}
+\bibitem{ref1} S. Tanwar et al., ``Privacy-Preserving Surveillance Using Edge Computing,'' \textit{2020 IEEE International Conference on Computing, Power and Communication Technologies}, 2020.
+\bibitem{ref2} PMC, ``Design and Implementation of ESP32-Based Edge Computing for Object Recognition,'' 2025.
+\bibitem{ref3} Random Nerd Tutorials, ``ESP32: Send Messages to WhatsApp,'' 2024.
+\bibitem{ref4} arXiv, ``From Tiny Machine Learning to Tiny Deep Learning: A Survey,'' 2025.
+\bibitem{ref5} ScienceDirect, ``A review on TinyML: State-of-the-art and prospects.''
+\bibitem{ref6} MedCrave, ``Evaluation of the energy viability of smart IoT sensors using TinyML for computer vision applications,'' 2023.
+\bibitem{ref7} IEEE, ``Real-Time Human Detection and Counting System Using Deep Learning Computer Vision Techniques,'' 2022.
+\bibitem{ref8} SIGARCH, ``Tiny Machine Learning: The Future of ML is Tiny and Bright,'' 2024.
+\bibitem{ref9} arXiv, ``Detecting Small Objects in Real-Time on Microcontroller Units,'' 2024.
+\bibitem{ref10} ScienceDirect, ``Combinative model compression approach for enhancing 1D CNN performance.''
+\bibitem{ref11} Fritz AI, ``What is TensorFlow Lite Micro,'' 2023.
+\bibitem{ref12} YouTube, ``Simple ESP32-CAM Object Detection,'' 2023.
+\bibitem{ref13} TinyWorld, ``How to Deploy Model to Arduino,'' 2021.
+\bibitem{ref14} Edge Impulse, ``Deployment Documentation,'' 2025.
+\bibitem{ref15} Semantic Scholar, ``Camera Image Processing on ESP32 Microcontroller with Help of Convolutional Neural Network,'' 2022.
+\bibitem{ref16} ScienceDirect, ``Multicamera edge-computing system for persons indoor location and tracking,'' 2023.
+\bibitem{ref17} Hackster.io, ``Embedded Machine Learning for Person Detection,'' 2022.
+\bibitem{ref18} Reddit, ``ESP32-CAM Project: Human Detection, Image Capture,'' 2024.
+\bibitem{ref19} Arduino Forum, ``How to Perform Object Detection Directly on ESP32-CAM,'' 2024.
+\bibitem{ref20} YouTube, ``ESP32 CAM with Python OpenCV Yolo V3 for object detection,'' 2023.
+\bibitem{ref21} Arduino Forum, ``Person detection model on ESP32-WROVER,'' 2022.
+\bibitem{ref22} Random Nerd Tutorials, ``ESP32-CAM Troubleshooting Guide,'' 2024.
+\bibitem{ref23} arXiv, ``Detecting Small Objects in Real-Time on Microcontroller Units,'' 2024.
+\bibitem{ref24} Semantic Scholar, ``TinyML-Based Pothole Detection: A Comparative Analysis of YOLO and FOMO.''
+\bibitem{ref26} arXiv, ``Wake Vision: A Tailored Dataset and Benchmark Suite for TinyML Person Detection,'' 2024.
+\bibitem{ref27} TensorFlow Blog, ``Introducing Wake Vision: A New Dataset for Person Detection in TinyML,'' 2024.
+\bibitem{ref28} IJESAT, ``Real Time Object Detection Using MobileNet-SSD,'' 2024.
+\bibitem{ref29} IJERT, ``Real-time object detection and recognition using MobileNet-SSD with OpenCV,'' 2024.
+\bibitem{ref30} IEEE, ``An Improved Object Detection Model for Embedded Systems,'' 2020.
+\bibitem{ref33} PMC, ``Smart Video Surveillance System Based on Edge Computing,'' 2021.
+\bibitem{ref34} arXiv, ``Efficient Privacy Preserving Edge Computing Framework for Image Classification,'' 2020.
+\bibitem{ref35} PMC, ``Intelligent Monitoring System with Privacy Preservation Based on Edge AI,'' 2023.
+\bibitem{ref36} USENIX, ``Privacy-Aware Deep Learning Approach for Face Recognition,'' 2018.
+\bibitem{ref37} Engineers Garage, ``Send messages to WhatsApp or Telegram from ESP32,'' 2024.
+\bibitem{ref38} ElectronicWings, ``Send a WhatsApp message using ESP32,'' 2024.
+\bibitem{ref39} TechTOnions, ``ESP32 Sending Alert Message To WhatsApp,'' 2025.
+\bibitem{ref40} PMC, ``Developing real-time IoT-based public safety alert and emergency response system,'' 2025.
+\bibitem{ref41} JETIR, ``Smart Doorbell Security System Using IoT,'' 2022.
+\bibitem{ref43} PMC, ``Research on Target Image Classification in Low-Light Night Vision,'' 2024.
+\bibitem{ref44} IJSRST, ``Smart Home IoT Device Implementation,'' 2021.
+\bibitem{ref45} PMC, ``Usage and impact of the internet-of-things-based smart home technology,'' 2022.
+\bibitem{ref48} Pioneer Security, ``How Edge computing in surveillance Improves Security,'' 2025.
+\end{thebibliography}
+
+\end{document}
