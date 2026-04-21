@@ -10,7 +10,7 @@ from tensorflow.keras import layers, models, regularizers
 import pathlib
 import numpy as np
 
-DATASET_PATH = '../../Human_Detection_Dataset/Human_Detection_Dataset'
+DATASET_PATH = '../datasets/Human_Detection_Dataset/Human_Detection_Dataset'
 IMG_HEIGHT = 48
 IMG_WIDTH = 48
 BATCH_SIZE = 32

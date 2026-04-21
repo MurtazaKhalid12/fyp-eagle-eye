@@ -3,7 +3,7 @@ import pathlib
 import matplotlib.pyplot as plt
 
 def debug_data():
-    DATASET_PATH = '../../Human_Detection_Dataset'
+    DATASET_PATH = '../datasets/Human_Detection_Dataset'
     data_dir = pathlib.Path(DATASET_PATH)
     print(f"Data directory: {data_dir.resolve()}")
     

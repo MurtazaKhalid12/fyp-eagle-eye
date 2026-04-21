@@ -3,7 +3,7 @@ import tensorflow as tf
 import numpy as np
 import pathlib
 
-DATASET_PATH = '../../Human_Detection_Dataset/Human_Detection_Dataset'
+DATASET_PATH = '../datasets/Human_Detection_Dataset/Human_Detection_Dataset'
 MODEL_PATH = 'tiny_human_model_color.tflite'
 
 def main():

@@ -1,10 +1,11 @@
 # Project Manual Start Guide
 
-This guide provides step-by-step instructions to manually start the backend services for the EagleEye project (Mosquitto MQTT Broker and Python Bridge).
+This guide provides step-by-step instructions to manually start all services for the EagleEye project.
 
 ## Prerequisites
 - Ensure **Mosquitto** is installed and added to your system PATH.
 - Ensure **Python** is installed with the required dependencies (`paho-mqtt`, `firebase-admin`, `cloudinary`, `python-dotenv`).
+- Ensure **Node.js** and **npm** are installed for the mobile app.
 
 ---
 
@@ -12,9 +13,9 @@ This guide provides step-by-step instructions to manually start the backend serv
 The MQTT broker handles local communication between the ESP32 and the computer.
 
 1.  Open a Command Prompt or PowerShell terminal.
-2.  Navigate to the project integration directory:
+2.  Navigate to the backend directory:
     ```powershell
-    cd c:\fyp-eagle-eye\IOT_Project_FYP_integeration
+    cd c:\fyp-eagle-eye\backend
     ```
 3.  Start Mosquitto with the local configuration file:
     ```powershell
@@ -31,9 +32,9 @@ The MQTT broker handles local communication between the ESP32 and the computer.
 The bridge script listens for MQTT messages from the ESP32 and uploads images to Cloudinary/Firebase.
 
 1.  Open a **new** terminal window (do not close the Mosquitto one).
-2.  Navigate to the project integration directory:
+2.  Navigate to the backend directory:
     ```powershell
-    cd c:\fyp-eagle-eye\IOT_Project_FYP_integeration
+    cd c:\fyp-eagle-eye\backend
     ```
 3.  Run the bridge script:
     ```powershell
@@ -42,7 +43,16 @@ The bridge script listens for MQTT messages from the ESP32 and uploads images to
 
 ---
 
-## 3. Start the Mobile App (ADB / USB Debugging)
+## 3. Flash the ESP32-CAM Firmware
+1.  Open **Arduino IDE**.
+2.  Open `c:\fyp-eagle-eye\firmware\eagleeye-main\eagleeye-main.ino`.
+3.  Update `secrets.h` with your current WiFi SSID/password and MQTT broker IP.
+4.  Select board: **AI Thinker ESP32-CAM**.
+5.  Flash and open Serial Monitor at **115200 baud**.
+
+---
+
+## 4. Start the Mobile App (ADB / USB Debugging)
 To run the mobile app on a physical Android device connected via USB.
 
 1.  **Connect Device**: Plug in your Android phone and ensure "USB Debugging" is enabled in Developer Options.
@@ -61,12 +71,13 @@ To run the mobile app on a physical Android device connected via USB.
 
 ---
 
-## 4. Verification
+## 5. Verification
 *   **Mosquitto Terminal:** You should see a log entry similar to:
     > `New client connected from 127.0.0.1 as [ID] (p2, c1, k60).`
 *   **Bridge Terminal:** You should see the success message:
     > `[Success] Bridge Connected to Local Mosquitto! Listening for intruders...`
 
-## 5. Troubleshooting
+## 6. Troubleshooting
 *   **"Mosquitto not found"**: Ensure Mosquitto is in your system's Environment Variables (Path).
 *   **Connection Refused**: Check if your firewall is blocking port 1883 or if the IP address in `mosquitto.conf` and `bridge.py` matches your computer's current IP.
+*   **IP Changed**: Run `ipconfig` and update the broker IP in both `backend/bridge.py` (line 16) and `firmware/eagleeye-main/secrets.h`.

@@ -15,7 +15,7 @@ import random
 import numpy as np
 from pathlib import Path
 
-DATASET_PATH = Path('../../Human_Detection_Dataset/Human_Detection_Dataset')
+DATASET_PATH = Path('../datasets/Human_Detection_Dataset/Human_Detection_Dataset')
 AUGMENTATIONS_PER_IMAGE = 5  # Create 5 variants of each image
 
 

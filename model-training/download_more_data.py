@@ -19,7 +19,7 @@ import shutil
 import random
 from pathlib import Path
 
-DATASET_PATH = Path('../../Human_Detection_Dataset/Human_Detection_Dataset')
+DATASET_PATH = Path('../datasets/Human_Detection_Dataset/Human_Detection_Dataset')
 
 def download_with_progress(url, dest):
     """Download a file with progress indicator"""

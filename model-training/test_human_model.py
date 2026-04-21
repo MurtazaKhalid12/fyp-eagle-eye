@@ -7,7 +7,7 @@ from PIL import Image
 
 # --- CONFIGURATION ---
 MODEL_PATH = "human_detection_model.tflite"
-DATASET_PATH = "../../Human_Detection_Dataset"  # Relative to this script's location
+DATASET_PATH = "../datasets/Human_Detection_Dataset"  # Relative to this script's location
 IMG_SIZE = (96, 96)
 
 def main():

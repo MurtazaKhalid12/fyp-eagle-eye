@@ -2,7 +2,7 @@
 
 [![Status](https://img.shields.io/badge/Status-Active-success)](https://github.com/muhammadAB123/fyp-eagle-eye)
 [![Platform](https://img.shields.io/badge/Platform-ESP32--CAM-blue)](https://espressif.com)
-[![AI](https://img.shields.io/badge/AI-TinyML%20%2F%20Edge%20Impulse-orange)](https://edgeimpulse.com)
+[![AI](https://img.shields.io/badge/AI-TinyML%20%2F%20Custom%20CNN-orange)](https://www.tensorflow.org/lite/microcontrollers)
 [![Database](https://img.shields.io/badge/Database-Firebase-yellow)](https://firebase.google.com)
 [![Storage](https://img.shields.io/badge/Storage-Cloudinary-blue)](https://cloudinary.com)
 
@@ -28,26 +28,57 @@ graph TD
     H -->|View Alert| I[User Notification]
 ```
 
-### 1. The Edge Layer (Firmware)
+### 1. The Edge Layer (`firmware/`)
 *   **Hardware**: AI-Thinker ESP32-CAM.
-*   **AI Model**: Quantized Neural Network trained via Edge Impulse.
-*   **Logic**: Runs continuous low-res inference. Upon detection (>80% accuracy), it captures a high-resolution JPEG and sends it via MQTT.
+*   **AI Model**: Custom-trained 48×48×1 greyscale INT8 quantized CNN.
+*   **Logic**: Captures at QVGA (320×240), center-crops to 240×240 (no distortion), resizes to 48×48 for inference (~106ms). Upon detection, captures high-res color JPEG with flash and sends via MQTT.
 
-### 2. The Cloud Gateway (Python Bridge)
-*   **Connectivity**: Connects local MQTT broker to the internet.
+### 2. The Cloud Gateway (`backend/`)
+*   **Connectivity**: Connects local MQTT broker (Mosquitto) to the internet.
 *   **Cloudinary**: Stores high-resolution images securely and provides optimized delivery URLs.
 *   **Firebase**: Acts as the central nervous system, storing timestamps, alert types, and image URLs in a Realtime Database.
+*   **Remote Control**: Listens for arm/disarm commands from the mobile app and relays to ESP32.
 
-### 3. The Mobile Application (React Native)
+### 3. The Mobile Application (`mobile-app/`)
 *   **Real-time Alerts**: Listens to Firebase and updates the UI instantly when an intrusion occurs.
+*   **Dashboard**: System status, arm/disarm toggle, latest alert preview.
 *   **Gallery View**: Browse through historical alerts with high-quality evidence images.
+*   **Stats**: Intrusion statistics and analytics.
 *   **Tech Stack**: Expo, React Native, Firebase SDK.
 
 ---
 
-## 🚀 Setting Up the Project
+## 📁 Project Structure
 
-> **Need a quick start?** Check out the [Manual Start Guide](PROJECT_MANUAL_START.md) for step-by-step commands to run the backend components.
+```
+fyp-eagle-eye/
+├── firmware/              # ESP32-CAM firmware
+│   ├── eagleeye-main/     # Active firmware (custom greyscale model)
+│   └── tests/             # PIR sensor test sketches
+├── backend/               # Python bridge + MQTT broker config
+│   ├── bridge.py          # Main MQTT→Cloud bridge
+│   ├── mosquitto.conf     # Local MQTT broker config
+│   └── captures/          # Locally saved intrusion images
+├── mobile-app/            # React Native (Expo) mobile app
+│   └── src/               # Screens, components, config, hooks
+├── model-training/        # ML model training scripts
+│   ├── train_tiny_model.py  # Active model training script
+│   └── exported-models/   # Output .tflite models
+├── datasets/              # Training datasets
+├── docs/                  # Papers, presentations, diagrams
+│   ├── presentations/
+│   ├── papers/
+│   └── assets/
+├── _archive/              # Old/obsolete experiments
+├── README.md
+└── PROJECT_MANUAL_START.md
+```
+
+---
+
+## 🚀 Getting Started
+
+> **Quick start?** Check out the [Manual Start Guide](PROJECT_MANUAL_START.md) for step-by-step commands.
 
 ### Hardware Prerequisites
 *   ESP32-CAM (AI-Thinker)
@@ -57,18 +88,19 @@ graph TD
 ### Software Setup
 
 #### 1. Firmware (ESP32)
-1.  Open `IOT_Project_FYP_integeration/esp32_camera/esp32_camera.ino`.
+1.  Open `firmware/eagleeye-main/eagleeye-main.ino` in Arduino IDE.
 2.  Configure `secrets.h` with your WiFi and MQTT credentials.
 3.  Flash using the AI Thinker ESP32-CAM board setting.
 
 #### 2. Backend (Python Bridge)
-1.  Enter the integration directory: `cd IOT_Project_FYP_integeration`.
+1.  Enter the backend directory: `cd backend`.
 2.  Install dependencies:
     ```bash
     pip install paho-mqtt firebase-admin cloudinary python-dotenv
     ```
 3.  Configure `.env` with your Cloudinary and Firebase credentials.
-4.  Run the bridge: `python bridge.py`.
+4.  Start the MQTT broker: `mosquitto -c mosquitto.conf -v`
+5.  Run the bridge: `python bridge.py`.
 
 #### 3. Mobile App (Expo)
 1.  Navigate to `mobile-app`.
@@ -77,24 +109,12 @@ graph TD
 
 ---
 
-## 📸 Project Gallery
-
-### Mobile App Interface
-| Alert List | Image Detail |
-| :---: | :---: |
-| [Insert App Screenshot 1] | [Insert App Screenshot 2] |
-
-### Hardware Setup
-| ESP32-CAM | Edge AI Dashboard |
-| :---: | :---: |
-| [Insert Hardware Photo] | [Insert Edge Impulse Graph] |
-
----
-
 ## 🛠️ Tech Stack & Credits
-*   **Communication**: Local MQTT via Mosquitto Broker (Lightweight IoT messaging)
-*   **React Native**: Cross-platform mobile performance.
-*   **Image Text**: *"Advanced Tech Stack: Leveraging Local Mosquitto and modern protocols for ultimate system reliability."*
+*   **Edge AI**: TensorFlow Lite Micro (Custom-trained CNN)
+*   **Communication**: Local MQTT via Mosquitto Broker
+*   **Cloud**: Cloudinary (image storage) + Firebase Realtime Database
+*   **Mobile**: React Native + Expo
+*   **Hardware**: ESP32-CAM (AI-Thinker) with OV2640
 
 ---
 

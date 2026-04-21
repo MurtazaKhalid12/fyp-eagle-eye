@@ -3,19 +3,19 @@ from tensorflow.keras import layers, models
 import pathlib
 import os
 
-# --- CONFIGURATION (V2 - Mini MobileNet) ---
-DATASET_PATH = '../../Human_Detection_Dataset'
+# --- CONFIGURATION ---
+DATASET_PATH = '../datasets/Human_Detection_Dataset/Human_Detection_Dataset'
 IMG_HEIGHT = 48
 IMG_WIDTH = 48
 BATCH_SIZE = 32
-EPOCHS = 40 
-MODEL_NAME = 'tiny_human_model_v2'
+EPOCHS = 30
+MODEL_NAME = 'tiny_human_model'
 
 def main():
     data_dir = pathlib.Path(DATASET_PATH)
     print(f"Loading dataset from: {data_dir}")
 
-    # Load as Grayscale
+    # Load as Grayscale (Much faster than RGB on ESP32)
     train_ds = tf.keras.utils.image_dataset_from_directory(
         data_dir,
         validation_split=0.2,
@@ -39,48 +39,37 @@ def main():
     class_names = train_ds.class_names
     print(f"Classes: {class_names}")
 
+    # Data Augmentation
     data_augmentation = tf.keras.Sequential([
         layers.RandomFlip("horizontal"),
-        layers.RandomRotation(0.2),
-        layers.RandomZoom(0.2),
-        layers.RandomContrast(0.2),
-        layers.RandomTranslation(0.1, 0.1)
+        layers.RandomRotation(0.1),
+        layers.RandomZoom(0.1),
     ])
 
-    # --- MINI MOBILENET BLOCK ---
-    def depthwise_block(x, filters, stride=1):
-        # Depthwise
-        x = layers.DepthwiseConv2D(3, strides=stride, padding='same', use_bias=False)(x)
-        x = layers.BatchNormalization()(x)
-        x = layers.ReLU()(x)
-        # Pointwise
-        x = layers.Conv2D(filters, 1, strides=1, padding='same', use_bias=False)(x)
-        x = layers.BatchNormalization()(x)
-        x = layers.ReLU()(x)
-        return x
-
-    # --- ARCHITECTURE ---
-    inputs = layers.Input(shape=(IMG_HEIGHT, IMG_WIDTH, 1))
-    x = layers.Rescaling(1./127.5, offset=-1)(inputs)
-    x = data_augmentation(x)
-
-    # Initial Conv (Stride 2 to shrink 48->24 immediately)
-    x = layers.Conv2D(16, 3, strides=2, padding='same', use_bias=False)(x)
-    x = layers.BatchNormalization()(x)
-    x = layers.ReLU()(x)
-
-    # Blocks (MobileNet Style)
-    x = depthwise_block(x, 32, stride=1)
-    x = depthwise_block(x, 64, stride=2)  # 24->12
-    x = depthwise_block(x, 64, stride=1)
-    x = depthwise_block(x, 128, stride=2) # 12->6
-    x = depthwise_block(x, 128, stride=1)
-
-    x = layers.GlobalAveragePooling2D()(x)
-    x = layers.Dropout(0.3)(x)
-    outputs = layers.Dense(len(class_names), activation='softmax')(x)
-
-    model = models.Model(inputs, outputs)
+    # --- ULTRA-TINY ARCHITECTURE (ESP32 Optimized) ---
+    # Using Depthwise Separable Convolutions manually or just small standard convs
+    # Small standard convs are often faster on ESP32 than depthwise due to memory overhead in TFLite Micro implementation details sometimes.
+    # We will use a very shallow, narrow network.
+    
+    model = models.Sequential([
+        layers.Rescaling(1./127.5, offset=-1, input_shape=(IMG_HEIGHT, IMG_WIDTH, 1)), # [-1, 1]
+        data_augmentation,
+        
+        # Block 1
+        layers.Conv2D(8, 3, strides=2, padding='same', activation='relu'), # Downsample to 48x48
+        layers.MaxPooling2D(), # 24x24
+        
+        # Block 2
+        layers.Conv2D(16, 3, strides=2, padding='same', activation='relu'), # 12x12
+        layers.MaxPooling2D(), # 6x6
+        
+        # Block 3
+        layers.Conv2D(32, 3, padding='same', activation='relu'),
+        layers.GlobalAveragePooling2D(), # 32 features
+        
+        layers.Dropout(0.2),
+        layers.Dense(len(class_names), activation='softmax')
+    ])
 
     model.compile(optimizer='adam',
                   loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=False),
@@ -88,10 +77,10 @@ def main():
 
     model.summary()
 
-    print("Starting Training (V2)...")
+    print("Starting Training (Tiny Model)...")
     history = model.fit(train_ds, validation_data=val_ds, epochs=EPOCHS)
 
-    # Convert
+    # Convert to TFLite (INT8)
     print("Converting to TFLite (INT8)...")
     def representative_data_gen():
         for images, _ in train_ds.take(100):
@@ -113,14 +102,16 @@ def main():
         f.write(tflite_model)
     print(f"✅ Model saved: {tflite_filename}")
     
-    # Header
+    # Generate Header
+    print("Generating Header...")
     c_header = hex_to_c_array(tflite_model, "g_human_detect_model_data")
     with open("human_detect_model_data.h", "w") as f:
         f.write(c_header)
     print("✅ Header updated!")
 
 def hex_to_c_array(hex_data, var_name):
-    c_str = f"// Auto-generated (V2)\n#ifndef {var_name.upper()}_H\n#define {var_name.upper()}_H\n\n"
+    c_str = f"// Auto-generated (Tiny Model)\n"
+    c_str += f"#ifndef {var_name.upper()}_H\n#define {var_name.upper()}_H\n\n"
     c_str += f"extern const unsigned char {var_name}[];\n"
     c_str += f"extern const unsigned int {var_name}_len;\n\n"
     c_str += f"const unsigned char {var_name}[] = {{\n"
