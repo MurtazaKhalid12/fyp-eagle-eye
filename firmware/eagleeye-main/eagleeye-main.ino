@@ -12,8 +12,12 @@
 // --- INCLUDE YOUR NEW HEADER FILE ---
 #include "human_detect_model_data.h"
 
+// --- GLOBAL STATE ---
+bool is_streaming = false;
+
 // --- INCLUDE IOT HEADER ---
 #include "EagleEye_IoT.h"
+#include "camera_web_server.h"
 
 // =====================================================
 //  CONFIGURATION
@@ -199,66 +203,28 @@ void setup() {
   
   // Record wake time
   wake_time = millis();
-  
-  // --- Check why we woke up ---
-  esp_sleep_wakeup_cause_t wakeup_reason = esp_sleep_get_wakeup_cause();
-  
+
   Serial.println("\n\n=================================================");
   Serial.println(">>> EAGLEEYE: AI SURVEILLANCE SYSTEM <<<");
-  Serial.println(">>> PIR + Deep Sleep Mode <<<");
+  Serial.println(">>> [TEMP] DIRECT DETECTION MODE - PIR DISABLED <<<");
   Serial.println(">>> Greyscale Model (48x48x1) <<<");
   Serial.println("=================================================");
-  
-  switch(wakeup_reason) {
-    case ESP_SLEEP_WAKEUP_EXT0:
-      Serial.println(">>> WAKE REASON: PIR Motion Detected! <<<");
-      break;
-    case ESP_SLEEP_WAKEUP_TIMER:
-      Serial.println(">>> WAKE REASON: Timer <<<");
-      break;
-    default:
-      Serial.println(">>> WAKE REASON: Power-on / Reset <<<");
-      break;
-  }
+  Serial.println(">>> WAKE REASON: Direct boot (no PIR check) <<<");
   Serial.println("=================================================\n");
 
-  // --- FREE GPIO 14 from SD Card ---
-  // ESP32-CAM shares GPIO 14 with SD card. We must disable SD first.
-  SD_MMC.end();
-  gpio_reset_pin(GPIO_NUM_2);
-  gpio_reset_pin(GPIO_NUM_12);
-  gpio_reset_pin(GPIO_NUM_13);
-  gpio_reset_pin(GPIO_NUM_14);
-  gpio_reset_pin(GPIO_NUM_15);
-  Serial.println("[OK] SD Card disabled - GPIO 14 freed for PIR");
-  
+  // TEMP: SD/GPIO cleanup skipped (not using PIR pin)
+
   // Turn off flash LED initially
   pinMode(4, OUTPUT);
   digitalWrite(4, LOW);
-  
-  // Configure PIR pin as input (to read current state)
-  pinMode(PIR_PIN, INPUT);
 
   // --- Initialize WiFi & MQTT ---
   Serial.println("[...] Connecting to WiFi & MQTT...");
   init_wifi_mqtt();
   Serial.printf("[OK] WiFi connected! IP: %s\n", WiFi.localIP().toString().c_str());
 
-  // --- Wait briefly for MQTT to receive retained armed status ---
-  Serial.println("[...] Checking system armed status...");
-  unsigned long mqtt_wait_start = millis();
-  while (millis() - mqtt_wait_start < ARMED_CHECK_TIMEOUT) {
-    update_mqtt();
-    delay(100);
-  }
-  
-  // Check if system is disarmed
-  if (!is_system_armed) {
-    Serial.println(">>> SYSTEM IS DISARMED — Going back to sleep <<<");
-    enter_deep_sleep();
-    return;  // Never reached
-  }
-  Serial.println("[OK] System is ARMED — Starting detection");
+  // TEMP: Skip armed/disarmed check - always proceed directly
+  Serial.println("[TEMP] Skipping armed/disarmed check - running directly");
 
   // --- Initialize TFLite Memory ---
   if (psramFound()) {
@@ -270,19 +236,17 @@ void setup() {
 
   if (tensor_arena == nullptr) {
     Serial.println("[ERROR] Memory allocation failed!");
-    enter_deep_sleep();
-    return;
+    while(true) { delay(1000); } // TEMP: halt instead of sleep
   }
 
   // --- Initialize Camera ---
   setup_camera_ai();
 
   // --- Load TFLite Model ---
-  model = tflite::GetModel(g_human_detect_model_data); 
+  model = tflite::GetModel(g_human_detect_model_data);
   if (model->version() != TFLITE_SCHEMA_VERSION) {
     Serial.println("[ERROR] Model schema mismatch!");
-    enter_deep_sleep();
-    return;
+    while(true) { delay(1000); } // TEMP: halt instead of sleep
   }
 
   // --- Setup Interpreter ---
@@ -293,8 +257,7 @@ void setup() {
 
   if (interpreter->AllocateTensors() != kTfLiteOk) {
     Serial.println("[ERROR] Allocate Tensors Failed!");
-    enter_deep_sleep();
-    return;
+    while(true) { delay(1000); } // TEMP: halt instead of sleep
   }
 
   input = interpreter->input(0);
@@ -306,13 +269,13 @@ void setup() {
   Serial.printf("Output Shape: %d classes\n", output->dims->data[1]);
   Serial.println("---------------------\n");
 
-  // --- Set scanning deadline ---
-  scan_deadline = millis() + SCAN_DURATION_MS;
-  
   Serial.println("========================================");
-  Serial.printf("   AI SCANNING FOR %d SECONDS\n", SCAN_DURATION_MS / 1000);
-  Serial.println("   Looking for humans...");
+  Serial.println("   [TEMP] CONTINUOUS AI SCANNING");
+  Serial.println("   PIR bypassed - running forever");
   Serial.println("========================================\n");
+
+  // --- Start Live Camera Web Server ---
+  startCameraServer();
 }
 
 // =====================================================
@@ -321,26 +284,17 @@ void setup() {
 void loop() {
   // 1. Maintain MQTT Connection
   update_mqtt();
-  
-  // 2. Check if system was disarmed remotely while scanning
-  if (!is_system_armed) {
-    Serial.println(">>> DISARMED remotely — Going to sleep <<<");
-    enter_deep_sleep();
-    return;
+
+  // If live stream is active, skip AI inference to free up frame buffer and CPU
+  if (is_streaming) {
+      delay(100);
+      return;
   }
 
-  // 3. Check if scan window has expired
-  if (millis() > scan_deadline) {
-    if (human_confirmed) {
-      Serial.println(">>> Extended scan complete — Going to sleep <<<");
-    } else {
-      Serial.println(">>> No human found (false alarm) — Going to sleep <<<");
-    }
-    enter_deep_sleep();
-    return;
-  }
+  // TEMP: PIR / armed check / scan deadline / deep sleep all disabled
+  // TEMP: Runs continuously forever
 
-  // 4. Capture RGB565 Frame
+  // 2. Capture RGB565 Frame
   camera_fb_t *fb = esp_camera_fb_get();
   if (!fb) {
     Serial.println("[ERROR] Camera capture failed!");
@@ -348,11 +302,11 @@ void loop() {
     return;
   }
 
-  // 5. Convert RGB565 → Greyscale and resize for model
+  // 3. Convert RGB565 -> Greyscale and resize for model
   resize_rgb565_to_greyscale(fb->buf, fb->width, fb->height, input->data.int8, IMG_WIDTH, IMG_HEIGHT);
   esp_camera_fb_return(fb);
 
-  // 6. Run Inference
+  // 4. Run Inference
   long t1 = millis();
   TfLiteStatus status = interpreter->Invoke();
   long inference_ms = millis() - t1;
@@ -362,47 +316,39 @@ void loop() {
     return;
   }
 
-  // 7. Get Results
+  // 5. Get Results
   int8_t human_score = output->data.int8[0];
   int8_t non_human_score = output->data.int8[1];
   frame_count++;
 
   bool human_detected = (human_score > non_human_score && human_score > 10);
-  
-  // Time remaining in scan window
-  long time_left = (scan_deadline - millis()) / 1000;
 
   if (human_detected) {
-    Serial.printf("[FRAME %lu] >>> HUMAN! <<< | H=%d N=%d | %dms | %lds left\n",
-                  frame_count, human_score, non_human_score, inference_ms, time_left);
-    
+    Serial.printf("[FRAME %lu] >>> HUMAN! <<< | H=%d N=%d | %dms\n",
+                  frame_count, human_score, non_human_score, inference_ms);
     clear_scene_count = 0;
-    
+
     if (!image_sent_this_event) {
       Serial.println("========================================");
-      Serial.println("   HUMAN CONFIRMED — CAPTURING IMAGE!");
+      Serial.println("   HUMAN CONFIRMED - CAPTURING IMAGE!");
       Serial.println("========================================");
-      
+
       capture_and_send_image(NULL, 0, 0);
       image_sent_this_event = true;
       human_confirmed = true;
-      
-      // EXTEND the scan window — keep watching
-      scan_deadline = millis() + EXTENDED_SCAN_MS;
-      Serial.printf(">>> Extending scan by %d seconds <<<\n", EXTENDED_SCAN_MS / 1000);
     }
   } else {
     // No human in this frame
     clear_scene_count++;
-    
-    Serial.printf("[FRAME %lu] Monitor | H=%d N=%d | %dms | %lds left\n",
-                  frame_count, human_score, non_human_score, inference_ms, time_left);
-    
-    // Scene cleared: person has left
+    Serial.printf("[FRAME %lu] Monitor | H=%d N=%d | %dms\n",
+                  frame_count, human_score, non_human_score, inference_ms);
+
+    // TEMP: Reset event flag after scene clears so next detection sends a new image
     if (image_sent_this_event && clear_scene_count >= CLEAR_SCENE_FRAMES) {
-      Serial.println(">>> Scene cleared! Person left — Going to sleep <<<");
-      enter_deep_sleep();
-      return;
+      Serial.println(">>> Scene cleared - resetting for next detection <<<");
+      image_sent_this_event = false;
+      human_confirmed = false;
+      clear_scene_count = 0;
     }
   }
 
