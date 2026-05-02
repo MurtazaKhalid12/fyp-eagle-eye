@@ -1,31 +1,138 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import {
+    View,
+    Text,
+    StyleSheet,
+    TextInput,
+    TouchableOpacity,
+    ActivityIndicator,
+    KeyboardAvoidingView,
+    Platform,
+    Linking,
+    Alert,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { WebView } from 'react-native-webview';
+import { Image } from 'expo-image';
+
+const IPV4_RE = /^(25[0-5]|2[0-4]\d|1?\d?\d)(\.(25[0-5]|2[0-4]\d|1?\d?\d)){3}$/;
+
+/** Must match EAGLEEYE_WS_PORT in firmware eagleeye_ws.h */
+const WS_PREVIEW_PORT = 81;
+
+function arrayBufferToJpegDataUri(buffer) {
+    const u8 = new Uint8Array(buffer);
+    const chunk = 0x8000;
+    let binary = '';
+    for (let i = 0; i < u8.length; i += chunk) {
+        binary += String.fromCharCode.apply(null, u8.subarray(i, Math.min(i + chunk, u8.length)));
+    }
+    return `data:image/jpeg;base64,${btoa(binary)}`;
+}
 
 export default function LiveMonitorScreen() {
-    const [ipAddress, setIpAddress] = useState('192.168.100.');
+    const [ipAddress, setIpAddress] = useState('');
     const [isStreaming, setIsStreaming] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
+    const [streamError, setStreamError] = useState(null);
+    const [frameDataUri, setFrameDataUri] = useState(null);
+    const streamingRef = useRef(false);
+
+    useEffect(() => {
+        streamingRef.current = isStreaming;
+    }, [isStreaming]);
+
+    useEffect(() => {
+        if (!isStreaming) {
+            setFrameDataUri(null);
+            return;
+        }
+
+        const ip = ipAddress.trim();
+        if (!IPV4_RE.test(ip)) {
+            return;
+        }
+
+        setIsLoading(true);
+        setStreamError(null);
+        setFrameDataUri(null);
+
+        const url = `ws://${ip}:${WS_PREVIEW_PORT}`;
+        const ws = new WebSocket(url);
+        ws.binaryType = 'arraybuffer';
+
+        ws.onopen = () => {
+            setStreamError(null);
+        };
+
+        ws.onmessage = (event) => {
+            if (typeof event.data === 'string') {
+                return;
+            }
+            try {
+                const uri = arrayBufferToJpegDataUri(event.data);
+                setFrameDataUri(uri);
+                setIsLoading(false);
+                setStreamError(null);
+            } catch {
+                setStreamError('Invalid JPEG frame from camera');
+            }
+        };
+
+        ws.onerror = () => {
+            setStreamError(
+                `WebSocket ${url} failed. Flash firmware with eagleeye_ws.h and install Arduino library "WebSockets" (Links2004).`,
+            );
+            setIsLoading(false);
+        };
+
+        ws.onclose = () => {
+            setIsLoading(false);
+            if (streamingRef.current) {
+                setStreamError('WebSocket closed (camera offline or wrong IP).');
+            }
+        };
+
+        return () => {
+            ws.close();
+        };
+    }, [isStreaming, ipAddress]);
 
     const toggleStream = async () => {
         if (isStreaming) {
             setIsStreaming(false);
+            setStreamError(null);
+            setFrameDataUri(null);
             return;
         }
 
-        if (!ipAddress.trim()) {
-            alert("Please enter the ESP32 Camera IP address.");
+        const ip = ipAddress.trim();
+        if (!ip) {
+            alert('Enter the ESP32 IP from Serial Monitor (e.g. 192.168.137.5 on PC hotspot).');
             return;
         }
-        
-        setIsLoading(true);
+        if (!IPV4_RE.test(ip)) {
+            alert('Enter a full IPv4 address, e.g. 192.168.137.5');
+            return;
+        }
+
+        setStreamError(null);
         setIsStreaming(true);
-        
-        // Hide loader after a brief moment assuming the stream starts loading
-        setTimeout(() => setIsLoading(false), 1500);
     };
+
+    const openStreamInBrowser = useCallback(async () => {
+        const ip = ipAddress.trim();
+        if (!IPV4_RE.test(ip)) {
+            Alert.alert('Invalid IP', 'Enter the full camera IP first.');
+            return;
+        }
+        const url = `http://${ip}/`;
+        try {
+            await Linking.openURL(url);
+        } catch {
+            Alert.alert('Could not open browser', url);
+        }
+    }, [ipAddress]);
 
     return (
         <SafeAreaView style={styles.container}>
@@ -39,33 +146,38 @@ export default function LiveMonitorScreen() {
                 </View>
             </View>
 
-            <KeyboardAvoidingView 
-                behavior={Platform.OS === "ios" ? "padding" : "height"}
+            <KeyboardAvoidingView
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                 style={styles.content}
             >
-                {/* Video Stream Container */}
                 <View style={styles.streamContainer}>
                     {isStreaming ? (
                         <>
-                            {isLoading && (
+                            {isLoading && !frameDataUri && (
                                 <View style={styles.loaderContainer}>
                                     <ActivityIndicator size="large" color="#2196F3" />
-                                    <Text style={styles.loaderText}>Connecting to Camera...</Text>
+                                    <Text style={styles.loaderText}>WebSocket {WS_PREVIEW_PORT}…</Text>
                                 </View>
                             )}
-                            <WebView 
-                                source={{ html: `
-                                    <html>
-                                    <body style="margin:0;padding:0;background-color:black;display:flex;justify-content:center;align-items:center;">
-                                        <img src="http://${ipAddress.trim()}/" style="width:100%; height:100%; object-fit:contain;" />
-                                    </body>
-                                    </html>
-                                ` }} 
-                                style={styles.streamImage}
-                                scrollEnabled={false}
-                                showsVerticalScrollIndicator={false}
-                                showsHorizontalScrollIndicator={false}
-                            />
+                            {streamError ? (
+                                <View style={styles.errorBanner}>
+                                    <Text style={styles.errorText}>{streamError}</Text>
+                                    <Text style={styles.errorHint}>
+                                        Same Wi‑Fi as the camera. Browser MJPEG button still works as fallback.
+                                    </Text>
+                                </View>
+                            ) : null}
+                            {frameDataUri ? (
+                                <Image
+                                    source={{ uri: frameDataUri }}
+                                    style={styles.liveImage}
+                                    contentFit="contain"
+                                    cachePolicy="none"
+                                    priority="high"
+                                    transition={0}
+                                    allowDownscaling
+                                />
+                            ) : null}
                         </>
                     ) : (
                         <View style={styles.offlineContainer}>
@@ -76,31 +188,45 @@ export default function LiveMonitorScreen() {
                     )}
                 </View>
 
-                {/* Controls */}
                 <View style={styles.controlsCard}>
                     <Text style={styles.inputLabel}>ESP32-CAM IP Address</Text>
                     <View style={styles.inputRow}>
                         <Ionicons name="wifi" size={20} color="#757575" style={styles.inputIcon} />
                         <TextInput
                             style={styles.input}
-                            placeholder="e.g., 192.168.100.15"
+                            placeholder="e.g. 192.168.137.5 (Serial Monitor)"
                             value={ipAddress}
                             onChangeText={setIpAddress}
-                            keyboardType="numeric"
+                            keyboardType={Platform.OS === 'ios' ? 'numbers-and-punctuation' : 'decimal-pad'}
                             autoCapitalize="none"
                             autoCorrect={false}
                         />
                     </View>
 
-                    <TouchableOpacity 
-                        style={[styles.button, isStreaming ? styles.buttonStop : styles.buttonStart]} 
+                    <Text style={styles.hintText}>
+                        Live preview uses WebSocket ws://&lt;ip&gt;:{WS_PREVIEW_PORT} (binary JPEG, persistent connection —
+                        faster than HTTP polling). Arduino: install library &quot;WebSockets&quot; by Markus Sattler, then
+                        flash firmware.
+                    </Text>
+
+                    <TouchableOpacity
+                        style={[styles.button, isStreaming ? styles.buttonStop : styles.buttonStart]}
                         onPress={toggleStream}
                         activeOpacity={0.8}
                     >
-                        <Ionicons name={isStreaming ? "stop" : "play"} size={20} color="#FFF" />
+                        <Ionicons name={isStreaming ? 'stop' : 'play'} size={20} color="#FFF" />
                         <Text style={styles.buttonText}>
-                            {isStreaming ? "Stop Live View" : "Start Live View"}
+                            {isStreaming ? 'Stop Live View' : 'Start Live View'}
                         </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        style={[styles.button, styles.buttonSecondary]}
+                        onPress={openStreamInBrowser}
+                        activeOpacity={0.8}
+                    >
+                        <Ionicons name="open-outline" size={20} color="#1976D2" />
+                        <Text style={styles.buttonTextSecondary}>Open MJPEG stream in browser</Text>
                     </TouchableOpacity>
                 </View>
             </KeyboardAvoidingView>
@@ -149,7 +275,7 @@ const styles = StyleSheet.create({
     },
     streamContainer: {
         width: '100%',
-        aspectRatio: 4/3,
+        aspectRatio: 4 / 3,
         backgroundColor: '#000',
         borderRadius: 16,
         overflow: 'hidden',
@@ -163,9 +289,8 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         position: 'relative',
     },
-    streamImage: {
-        width: '100%',
-        height: '100%',
+    liveImage: {
+        ...StyleSheet.absoluteFillObject,
     },
     loaderContainer: {
         position: 'absolute',
@@ -178,6 +303,25 @@ const styles = StyleSheet.create({
         marginTop: 12,
         fontSize: 14,
         fontWeight: '500',
+    },
+    errorBanner: {
+        ...StyleSheet.absoluteFillObject,
+        zIndex: 5,
+        justifyContent: 'center',
+        padding: 16,
+        backgroundColor: 'rgba(0,0,0,0.75)',
+    },
+    errorText: {
+        color: '#FFCDD2',
+        fontSize: 15,
+        fontWeight: '600',
+        textAlign: 'center',
+    },
+    errorHint: {
+        color: '#B0BEC5',
+        fontSize: 13,
+        marginTop: 10,
+        textAlign: 'center',
     },
     offlineContainer: {
         justifyContent: 'center',
@@ -218,7 +362,12 @@ const styles = StyleSheet.create({
         borderColor: '#E0E0E0',
         borderRadius: 12,
         paddingHorizontal: 12,
-        marginBottom: 20,
+        marginBottom: 8,
+    },
+    hintText: {
+        fontSize: 12,
+        color: '#757575',
+        marginBottom: 16,
     },
     inputIcon: {
         marginRight: 10,
@@ -242,10 +391,20 @@ const styles = StyleSheet.create({
     buttonStop: {
         backgroundColor: '#F44336',
     },
+    buttonSecondary: {
+        backgroundColor: '#E3F2FD',
+        marginTop: 12,
+    },
     buttonText: {
         color: '#FFF',
         fontSize: 16,
         fontWeight: 'bold',
         marginLeft: 8,
-    }
+    },
+    buttonTextSecondary: {
+        color: '#1976D2',
+        fontSize: 16,
+        fontWeight: '600',
+        marginLeft: 8,
+    },
 });

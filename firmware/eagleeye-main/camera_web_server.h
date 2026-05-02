@@ -89,6 +89,66 @@ static esp_err_t stream_handler(httpd_req_t *req){
   return res;
 }
 
+// One JPEG frame (malloc). Caller must free(*jpg_buf). false if MJPEG / is active or camera error.
+inline bool eagleeye_grab_jpeg(uint8_t **jpg_buf, size_t *jpg_len) {
+  if (is_streaming) {
+    return false;
+  }
+  *jpg_buf = NULL;
+  *jpg_len = 0;
+
+  camera_fb_t *fb = esp_camera_fb_get();
+  if (!fb) {
+    return false;
+  }
+
+  if (fb->format != PIXFORMAT_JPEG) {
+    uint8_t *buf = NULL;
+    size_t len = 0;
+    bool ok = frame2jpg(fb, 40, &buf, &len);
+    esp_camera_fb_return(fb);
+    if (!ok || !buf) {
+      return false;
+    }
+    *jpg_buf = buf;
+    *jpg_len = len;
+    return true;
+  }
+
+  size_t len = fb->len;
+  uint8_t *buf = (uint8_t *)malloc(len);
+  if (!buf) {
+    esp_camera_fb_return(fb);
+    return false;
+  }
+  memcpy(buf, fb->buf, len);
+  esp_camera_fb_return(fb);
+  *jpg_buf = buf;
+  *jpg_len = len;
+  return true;
+}
+
+// Single JPEG for mobile apps (HTTP fallback; WebSocket is preferred in app)
+static esp_err_t capture_handler(httpd_req_t *req) {
+  if (is_streaming) {
+    httpd_resp_set_status(req, "503 Service Unavailable");
+    httpd_resp_set_type(req, "text/plain");
+    return httpd_resp_send(req, "MJPEG stream active", HTTPD_RESP_USE_STRLEN);
+  }
+
+  uint8_t *jpg_buf = NULL;
+  size_t jpg_len = 0;
+  if (!eagleeye_grab_jpeg(&jpg_buf, &jpg_len)) {
+    httpd_resp_set_status(req, "500 Internal Server Error");
+    return httpd_resp_send(req, "Camera capture failed", HTTPD_RESP_USE_STRLEN);
+  }
+
+  httpd_resp_set_type(req, "image/jpeg");
+  esp_err_t res = httpd_resp_send(req, (const char *)jpg_buf, jpg_len);
+  free(jpg_buf);
+  return res;
+}
+
 void startCameraServer(){
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
   config.server_port = 80;
@@ -100,9 +160,18 @@ void startCameraServer(){
     .user_ctx  = NULL
   };
 
+  httpd_uri_t capture_uri = {
+    .uri       = "/capture",
+    .method    = HTTP_GET,
+    .handler   = capture_handler,
+    .user_ctx  = NULL
+  };
+
   Serial.printf("Starting web server on port: '%d'\n", config.server_port);
   if (httpd_start(&stream_httpd, &config) == ESP_OK) {
     httpd_register_uri_handler(stream_httpd, &stream_uri);
+    httpd_register_uri_handler(stream_httpd, &capture_uri);
+    Serial.println("HTTP: GET /  (MJPEG), GET /capture (single JPEG)");
   }
 }
 

@@ -18,6 +18,7 @@ bool is_streaming = false;
 // --- INCLUDE IOT HEADER ---
 #include "EagleEye_IoT.h"
 #include "camera_web_server.h"
+#include "eagleeye_ws.h"
 
 // =====================================================
 //  CONFIGURATION
@@ -276,17 +277,49 @@ void setup() {
 
   // --- Start Live Camera Web Server ---
   startCameraServer();
+  eagleeye_ws_begin();
 }
 
 // =====================================================
 //  MAIN LOOP (AI Detection + Smart Sleep)
 // =====================================================
+
+// While live preview (WS or MJPEG) runs, the AI loop does not run — clear_scene_count never advances,
+// so image_sent_this_event can stay true forever. Reset latch when preview ends.
+static void reset_intrusion_latch_after_preview(const char* reason) {
+  Serial.printf(">>> %s — reset detection latch for new alerts <<<\n", reason);
+  image_sent_this_event = false;
+  human_confirmed = false;
+  clear_scene_count = 0;
+}
+
 void loop() {
   // 1. Maintain MQTT Connection
   update_mqtt();
 
-  // If live stream is active, skip AI inference to free up frame buffer and CPU
-  if (is_streaming) {
+  // 2. WebSocket live preview (app) — binary JPEG frames
+  static bool prev_ws_clients = false;
+  eagleeye_ws_loop();
+  bool ws_clients = eagleeye_ws_has_clients();
+  if (prev_ws_clients && !ws_clients) {
+    reset_intrusion_latch_after_preview("App live view closed (WebSocket)");
+  }
+  prev_ws_clients = ws_clients;
+
+  if (ws_clients) {
+    delay(2);
+    return;
+  }
+
+  // 3. Browser MJPEG stream on /
+  static bool prev_mjpeg = false;
+  bool mjpeg = is_streaming;
+  if (prev_mjpeg && !mjpeg) {
+    reset_intrusion_latch_after_preview("Browser MJPEG stream stopped");
+  }
+  prev_mjpeg = mjpeg;
+
+  if (mjpeg) {
       delay(100);
       return;
   }

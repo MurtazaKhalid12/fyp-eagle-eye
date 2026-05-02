@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
-import { View, FlatList, StyleSheet, Text, ActivityIndicator, Alert } from 'react-native';
+import { View, FlatList, StyleSheet, Text, ActivityIndicator, Alert, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { useAlerts } from '../hooks/useAlerts';
 import ImageCard from '../components/ImageCard';
 import ImageDetailModal from '../components/ImageDetailModal';
 
 export default function GalleryScreen() {
-    const { alerts, loading, deleteAlert } = useAlerts();
+    const { alerts, loading, deleteAlert, deleteAllAlerts } = useAlerts();
+    const [deletingAll, setDeletingAll] = useState(false);
     const [selectedAlert, setSelectedAlert] = useState(null);
     const [modalVisible, setModalVisible] = useState(false);
 
@@ -28,6 +30,32 @@ export default function GalleryScreen() {
         setSelectedAlert(null);
     };
 
+    const confirmDeleteAll = () => {
+        if (alerts.length === 0) return;
+        Alert.alert(
+            'Delete all pictures',
+            `Remove all ${alerts.length} alert(s) from the app and queue Cloudinary cleanup? This cannot be undone.`,
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Delete all',
+                    style: 'destructive',
+                    onPress: async () => {
+                        setDeletingAll(true);
+                        try {
+                            await deleteAllAlerts();
+                            handleCloseModal();
+                        } catch {
+                            Alert.alert('Error', 'Could not delete all alerts. Try again.');
+                        } finally {
+                            setDeletingAll(false);
+                        }
+                    },
+                },
+            ],
+        );
+    };
+
     if (loading) {
         return (
             <View style={styles.center}>
@@ -38,7 +66,26 @@ export default function GalleryScreen() {
 
     return (
         <SafeAreaView style={styles.container}>
-            <Text style={styles.header}>EagleEye Alerts</Text>
+            <View style={styles.headerRow}>
+                <Text style={styles.header}>EagleEye Alerts</Text>
+                {alerts.length > 0 ? (
+                    <TouchableOpacity
+                        style={styles.deleteAllBtn}
+                        onPress={confirmDeleteAll}
+                        disabled={deletingAll}
+                        activeOpacity={0.7}
+                    >
+                        {deletingAll ? (
+                            <ActivityIndicator size="small" color="#C62828" />
+                        ) : (
+                            <>
+                                <Ionicons name="trash-outline" size={20} color="#C62828" />
+                                <Text style={styles.deleteAllText}>Delete all</Text>
+                            </>
+                        )}
+                    </TouchableOpacity>
+                ) : null}
+            </View>
             <FlatList
                 data={alerts}
                 keyExtractor={(item) => item.id}
@@ -75,13 +122,35 @@ const styles = StyleSheet.create({
         backgroundColor: '#F5F5F5',
         paddingTop: 10,
     },
+    headerRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 20,
+        marginBottom: 16,
+        marginTop: 10,
+    },
     header: {
         fontSize: 28,
         fontWeight: 'bold',
         color: '#333',
-        paddingHorizontal: 20,
-        marginBottom: 20,
-        marginTop: 10,
+        flex: 1,
+    },
+    deleteAllBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        paddingVertical: 8,
+        paddingHorizontal: 12,
+        borderRadius: 10,
+        backgroundColor: '#FFEBEE',
+        borderWidth: 1,
+        borderColor: '#FFCDD2',
+    },
+    deleteAllText: {
+        color: '#C62828',
+        fontSize: 14,
+        fontWeight: '600',
     },
     list: {
         paddingBottom: 20,
