@@ -1,0 +1,116 @@
+% EagleEye FYP — Daily change report (compiled from git history + session notes)
+% Compile: pdflatex EagleEye_Daily_Change_Report.tex (run twice for stable references)
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\hypersetup{
+  colorlinks=true,
+  linkcolor=blue!50!black,
+  urlcolor=blue!50!black,
+  pdftitle={EagleEye Daily Change Report},
+}
+
+\title{\textbf{EagleEye: Intelligent Edge AI Surveillance}\\[0.35em]
+\large Daily Change Report and Development History}
+\author{Project repository: \texttt{fyp-eagle-eye}}
+\date{Report generated: 2 May 2026 \\ \small Sources: \texttt{git log} (full history) and working-tree diff for 2 May 2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+This document records project evolution in a professional, date-ordered format. Historical entries are derived from committed changes in the version-control system. The entry for \textbf{2 May 2026} additionally summarizes enhancements present in the working tree at report generation time (including changes not yet committed), covering firmware live-preview transport, mobile application updates, and gallery administration features.
+\end{abstract}
+
+\tableofcontents
+\newpage
+
+\section{Purpose and conventions}
+\begin{itemize}[nosep]
+  \item \textbf{Scope:} EagleEye spans ESP32-CAM firmware, a Python MQTT--cloud bridge, a React Native (Expo) mobile client, model training assets, and documentation.
+  \item \textbf{Sources:} Commit subjects and bodies are paraphrased for clarity; hashes identify the corresponding revision where applicable.
+  \item \textbf{Updates:} Append new dated subsections when material changes land in \texttt{main}. Recompile this \texttt{.tex} file to refresh the PDF.
+\end{itemize}
+
+%------------------------------------------------------------------
+\section{Chronological development summary}
+
+\subsection{25 October 2025}
+\textbf{Milestone: repository bootstrap.} Initial README and project upload; early ESP32-CAM bring-up on university Wi-Fi infrastructure.
+
+\subsection{21 November 2025}
+\textbf{Milestone: on-device inference.} TensorFlow Lite pipeline validated; interactive verification via DumbDisplay (tap-to-classify prototype).
+
+\subsection{26 November 2025}
+\textbf{Maintenance.} Minor commit (no extended message in history).
+
+\subsection{8 December 2025}
+\textbf{End-to-end IoT path.} Human detection with approximately 712~ms latency; intruder JPEG relayed via MQTT; Cloudinary storage with metadata URLs persisted in Firebase Realtime Database. Modular layout: camera sketch with \texttt{EagleEye\_IoT.h} for connectivity. \\
+\textbf{Security hygiene.} \texttt{.gitignore} extended to exclude secrets (\texttt{.env}, \texttt{secrets.h}, \texttt{serviceAccountKey.json}).
+
+\subsection{10 December 2025}
+\textbf{Documentation.} README expanded to describe system architecture and usage.
+
+\subsection{14 December 2025}
+\textbf{Local MQTT and payload efficiency.} Mosquitto-based local broker; bridge subscribed for diagnostics; ESP32 transmits raw binary JPEG (larger MQTT buffer, tuned thresholds and cooldown). Supporting assets: Mosquitto configuration, training notebooks, quality simulation utilities, dataset maintenance.
+
+\subsection{10 February 2026}
+\textbf{Maintenance.} Minor commit.
+
+\subsection{14 February 2026}
+\textbf{Custom tiny model family.} In-house training artifacts under a dedicated model directory; reference to a $\sim$106~ms variant and Arduino export layout.
+
+\subsection{16 February 2026}
+\textbf{Greyscale TinyML deployment (\texttt{46847c76}).} INT8 CNN at $48{\times}48{\times}1$; RGB565 capture with software greyscale for inference; color evidence uploads unchanged; tensor arena reduced to 100~kB; simplified capture path in \texttt{EagleEye\_IoT.h}.
+
+\subsection{17 February 2026}
+\textbf{Command and control (\texttt{f803947c}).} Mobile: tabbed navigation, dashboard with arm/disarm and latest alert preview, heartbeat-driven online/offline badge. Bridge: Firebase listener on \texttt{config/armed}, intrusion gating when disarmed, periodic \texttt{status/heartbeat} updates. Manual start guide updated for USB/ADB workflow.
+
+\subsection{18 February 2026}
+\textbf{Imaging pipeline (\texttt{c79c10f7}, \texttt{719dae9b}).} QVGA capture with center $240{\times}240$ crop prior to model resize---undistorted ``digital zoom'' for improved range; serial diagnostics updated.
+
+\subsection{6 March 2026}
+\textbf{Academic milestone.} Mid FYP presentation completed (status commit).
+
+\subsection{21 April 2026}
+\textbf{Repository restructure (\texttt{179ef260}).} Consolidated layout: \texttt{firmware/eagleeye-main}, \texttt{backend}, \texttt{mobile-app}, \texttt{model-training}, \texttt{datasets}, \texttt{docs}, \texttt{\_archive}; sketch renamed to \texttt{eagleeye-main.ino}; manuals and README paths corrected. \\
+\textbf{Power-aware sensing (\texttt{d87859da}).} PIR on GPIO~14, deep sleep, timed AI windows, armed-state respect, camera/Wi-Fi de-init before sleep; SD disabled to free the PIR pin.
+
+\subsection{2 May 2026 (committed)}
+\textbf{Repository sync (\texttt{7dc9cc93}).} Latest commit on record for this date (short message in history).
+
+\subsection{2 May 2026 (working tree --- detailed technical delta)}
+The following items reflect substantive edits present locally at report time; integrate them into the next commit to keep history aligned.
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{Firmware --- HTTP snapshot API.} File \texttt{camera\_web\_server.h}: shared helper \texttt{eagleeye\_grab\_jpeg()} for single-frame JPEG extraction; \texttt{GET /capture} for mobile HTTP fallback; MJPEG stream on \texttt{GET /} unchanged. Include-guard typo corrected (erroneous leading character that broke preprocessing).
+  \item \textbf{Firmware --- WebSocket preview.} New \texttt{eagleeye\_ws.h}: binary JPEG push over WebSockets on port~81 (Arduino library: WebSockets by Markus Sattler). Reduces per-frame HTTP overhead versus repeated \texttt{/capture} polling.
+  \item \textbf{Firmware --- control flow.} \texttt{eagleeye-main.ino}: call \texttt{eagleeye\_ws\_begin()} after HTTP server start; service \texttt{eagleeye\_ws\_loop()} each iteration; while WebSocket clients are connected, AI inference is deferred (camera bandwidth). \textbf{Latch reset:} when WebSocket clients drop from one to zero, or when browser MJPEG streaming ends, \texttt{image\_sent\_this\_event}, \texttt{human\_confirmed}, and \texttt{clear\_scene\_count} reset so detections resume after closing Live Monitor (previously the latch could remain set because the AI loop did not run during preview).
+  \item \textbf{Mobile --- Live Monitor.} \texttt{LiveMonitorScreen.js}: primary path \texttt{ws://<camera-ip>:81} with binary frames rendered via \texttt{expo-image}; cleartext HTTP retained for camera URLs in \texttt{app.json} (\texttt{usesCleartextTraffic}). Legacy \texttt{react-native-webview} dependency removed from \texttt{package.json}.
+  \item \textbf{Mobile --- Gallery administration.} \texttt{useAlerts.js}: \texttt{deleteAllAlerts()} loads full \texttt{alerts} node, enqueues \texttt{public\_id} entries under \texttt{deletion\_requests} for Cloudinary cleanup by \texttt{bridge.py}, then removes \texttt{alerts}. \texttt{GalleryScreen.js}: confirmed \textbf{Delete all} control with loading state and modal dismissal.
+\end{enumerate}
+
+\textbf{Note:} Runtime JPEGs under \texttt{backend/captures/} may appear as untracked files during testing; exclude or gitignore per team policy. Local \texttt{secrets.h} changes (e.g.\ MQTT broker IP for hotspot vs.\ LAN) are not versioned by design.
+
+%------------------------------------------------------------------
+\section{Suggested maintenance}
+\begin{itemize}[nosep]
+  \item After each merged feature, append a dated subsection (one paragraph + bullet list if needed) and re-run \texttt{pdflatex}.
+  \item Keep commit messages descriptive; this report is easier to maintain when subjects follow \texttt{type(scope): summary} convention.
+\end{itemize}
+
+\section{Compilation}
+\texttt{cd docs/daily\_changelog} \\
+\texttt{pdflatex EagleEye\_Daily\_Change\_Report.tex} \\
+\texttt{pdflatex EagleEye\_Daily\_Change\_Report.tex}
+
+\end{document}

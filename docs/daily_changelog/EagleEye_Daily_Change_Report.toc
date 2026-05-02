@@ -1,0 +1,19 @@
+\contentsline {section}{\numberline {1}Purpose and conventions}{2}{section.1}%
+\contentsline {section}{\numberline {2}Chronological development summary}{2}{section.2}%
+\contentsline {subsection}{\numberline {2.1}25 October 2025}{2}{subsection.2.1}%
+\contentsline {subsection}{\numberline {2.2}21 November 2025}{2}{subsection.2.2}%
+\contentsline {subsection}{\numberline {2.3}26 November 2025}{2}{subsection.2.3}%
+\contentsline {subsection}{\numberline {2.4}8 December 2025}{2}{subsection.2.4}%
+\contentsline {subsection}{\numberline {2.5}10 December 2025}{2}{subsection.2.5}%
+\contentsline {subsection}{\numberline {2.6}14 December 2025}{2}{subsection.2.6}%
+\contentsline {subsection}{\numberline {2.7}10 February 2026}{2}{subsection.2.7}%
+\contentsline {subsection}{\numberline {2.8}14 February 2026}{2}{subsection.2.8}%
+\contentsline {subsection}{\numberline {2.9}16 February 2026}{3}{subsection.2.9}%
+\contentsline {subsection}{\numberline {2.10}17 February 2026}{3}{subsection.2.10}%
+\contentsline {subsection}{\numberline {2.11}18 February 2026}{3}{subsection.2.11}%
+\contentsline {subsection}{\numberline {2.12}6 March 2026}{3}{subsection.2.12}%
+\contentsline {subsection}{\numberline {2.13}21 April 2026}{3}{subsection.2.13}%
+\contentsline {subsection}{\numberline {2.14}2 May 2026 (committed)}{3}{subsection.2.14}%
+\contentsline {subsection}{\numberline {2.15}2 May 2026 (working tree --- detailed technical delta)}{3}{subsection.2.15}%
+\contentsline {section}{\numberline {3}Suggested maintenance}{4}{section.3}%
+\contentsline {section}{\numberline {4}Compilation}{4}{section.4}%

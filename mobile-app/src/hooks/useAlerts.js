@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ref, onValue, query, orderByChild, limitToLast, remove, push } from 'firebase/database';
+import { ref, onValue, query, orderByChild, limitToLast, remove, push, get } from 'firebase/database';
 import { database } from '../config/firebaseConfig';
 
 export function useAlerts() {
@@ -54,5 +54,25 @@ export function useAlerts() {
         }
     };
 
-    return { alerts, loading, deleteAlert };
+    const deleteAllAlerts = async () => {
+        try {
+            const alertsSnap = await get(ref(database, 'alerts'));
+            if (!alertsSnap.exists()) return;
+
+            const data = alertsSnap.val();
+            const cleanupRef = ref(database, 'deletion_requests');
+            for (const value of Object.values(data)) {
+                if (value && typeof value === 'object' && value.public_id) {
+                    await push(cleanupRef, { public_id: value.public_id });
+                }
+            }
+            await remove(ref(database, 'alerts'));
+            console.log('All alerts removed from Firebase; Cloudinary cleanup queued');
+        } catch (error) {
+            console.error('Error deleting all alerts:', error);
+            throw error;
+        }
+    };
+
+    return { alerts, loading, deleteAlert, deleteAllAlerts };
 }
