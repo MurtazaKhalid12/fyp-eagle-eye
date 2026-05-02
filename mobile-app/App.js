@@ -8,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import GalleryScreen from './src/screens/GalleryScreen';
 import DashboardScreen from './src/screens/DashboardScreen';
 import IntrusionStatsScreen from './src/screens/IntrusionStatsScreen';
+import LiveMonitorScreen from './src/screens/LiveMonitorScreen';
 
 const Tab = createBottomTabNavigator();
 
@@ -27,6 +28,8 @@ export default function App() {
                                 iconName = focused ? 'stats-chart' : 'stats-chart-outline';
                             } else if (route.name === 'Gallery') {
                                 iconName = focused ? 'images' : 'images-outline';
+                            } else if (route.name === 'Live') {
+                                iconName = focused ? 'videocam' : 'videocam-outline';
                             }
 
                             return <Ionicons name={iconName} size={size} color={color} />;
@@ -37,6 +40,7 @@ export default function App() {
                 >
                     <Tab.Screen name="Dashboard" component={DashboardScreen} />
                     <Tab.Screen name="Stats" component={IntrusionStatsScreen} />
+                    <Tab.Screen name="Live" component={LiveMonitorScreen} />
                     <Tab.Screen name="Gallery" component={GalleryScreen} />
                 </Tab.Navigator>
             </NavigationContainer>

@@ -13,6 +13,8 @@ static const char* _STREAM_CONTENT_TYPE = "multipart/x-mixed-replace;boundary=" 
 static const char* _STREAM_BOUNDARY = "\r\n--" PART_BOUNDARY "\r\n";
 static const char* _STREAM_PART = "Content-Type: image/jpeg\r\nContent-Length: %u\r\n\r\n";
 
+extern bool is_streaming;
+
 httpd_handle_t stream_httpd = NULL;
 
 static esp_err_t stream_handler(httpd_req_t *req){
@@ -26,6 +28,9 @@ static esp_err_t stream_handler(httpd_req_t *req){
   if(res != ESP_OK){
     return res;
   }
+
+  is_streaming = true;
+  Serial.println(">>> LIVE STREAM STARTED: AI Paused <<<");
 
   while(true){
     fb = esp_camera_fb_get();
@@ -78,6 +83,9 @@ static esp_err_t stream_handler(httpd_req_t *req){
     // A delay of 100ms gives ~10 FPS max stream, leaving CPU time for AI.
     vTaskDelay(100 / portTICK_PERIOD_MS); 
   }
+  
+  is_streaming = false;
+  Serial.println(">>> LIVE STREAM ENDED: AI Resumed <<<");
   return res;
 }
 

@@ -106,6 +106,16 @@ export default function DashboardScreen({ navigation }) {
                             value={isArmed}
                         />
                     </View>
+                    
+                    {/* NEW: Live Camera Button */}
+                    <TouchableOpacity 
+                        style={styles.liveButton}
+                        onPress={() => navigation.navigate('Live')}
+                        activeOpacity={0.8}
+                    >
+                        <Ionicons name="videocam" size={20} color="#FFF" />
+                        <Text style={styles.liveButtonText}>Open Live Camera Feed</Text>
+                    </TouchableOpacity>
                 </View>
 
                 {/* Monitoring Stats Grid */}
@@ -233,6 +243,26 @@ const styles = StyleSheet.create({
         fontSize: 13,
         color: '#888',
         marginTop: 4,
+    },
+    liveButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#4CAF50',
+        paddingVertical: 14,
+        borderRadius: 12,
+        marginTop: 20,
+        shadowColor: '#4CAF50',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 4,
+    },
+    liveButtonText: {
+        color: '#FFF',
+        fontSize: 16,
+        fontWeight: 'bold',
+        marginLeft: 8,
     },
     gridContainer: {
         flexDirection: 'row',

@@ -13,7 +13,7 @@ import threading
 from dotenv import load_dotenv
 load_dotenv() # Load variables from .env
 
-MQTT_BROKER = "192.168.100.8"
+MQTT_BROKER = "127.0.0.1"  # Safest for python bridge running on same PC
 MQTT_TOPIC_IMAGE = "eagleeye/camera/image"
 # IMPORTANT: Ensure this file exists in the same directory
 FIREBASE_KEY_PATH = "serviceAccountKey.json"
