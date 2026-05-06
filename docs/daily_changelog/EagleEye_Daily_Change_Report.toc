@@ -13,7 +13,8 @@
 \contentsline {subsection}{\numberline {2.11}18 February 2026}{3}{subsection.2.11}%
 \contentsline {subsection}{\numberline {2.12}6 March 2026}{3}{subsection.2.12}%
 \contentsline {subsection}{\numberline {2.13}21 April 2026}{3}{subsection.2.13}%
-\contentsline {subsection}{\numberline {2.14}2 May 2026 (committed)}{3}{subsection.2.14}%
-\contentsline {subsection}{\numberline {2.15}2 May 2026 (working tree --- detailed technical delta)}{3}{subsection.2.15}%
+\contentsline {subsection}{\numberline {2.14}2 May 2026 (\texttt {7dc9cc93})}{3}{subsection.2.14}%
+\contentsline {subsection}{\numberline {2.15}3 May 2026 (\texttt {3f6989fd})}{3}{subsection.2.15}%
+\contentsline {subsection}{\numberline {2.16}6 May 2026 (\texttt {0c41c75e})}{3}{subsection.2.16}%
 \contentsline {section}{\numberline {3}Suggested maintenance}{4}{section.3}%
 \contentsline {section}{\numberline {4}Compilation}{4}{section.4}%

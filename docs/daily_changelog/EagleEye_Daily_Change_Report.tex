@@ -22,13 +22,13 @@
 \title{\textbf{EagleEye: Intelligent Edge AI Surveillance}\\[0.35em]
 \large Daily Change Report and Development History}
 \author{Project repository: \texttt{fyp-eagle-eye}}
-\date{Report generated: 2 May 2026 \\ \small Sources: \texttt{git log} (full history) and working-tree diff for 2 May 2026}
+\date{Report revised: 6 May 2026 \\ \small Synced to latest commit \texttt{0c41c75e} on \texttt{main}}
 
 \begin{document}
 \maketitle
 
 \begin{abstract}
-This document records project evolution in a professional, date-ordered format. Historical entries are derived from committed changes in the version-control system. The entry for \textbf{2 May 2026} additionally summarizes enhancements present in the working tree at report generation time (including changes not yet committed), covering firmware live-preview transport, mobile application updates, and gallery administration features.
+This document records project evolution in a professional, date-ordered format. Entries follow \texttt{git log} on \texttt{main}. The \textbf{6 May 2026} section documents the most recent committed work (model-training layout and \texttt{sketchboard/} workspace). Earlier May entries summarize firmware live preview, mobile gallery tools, and related commits \texttt{7dc9cc93} and \texttt{3f6989fd}.
 \end{abstract}
 
 \tableofcontents
@@ -85,21 +85,14 @@ This document records project evolution in a professional, date-ordered format. 
 \textbf{Repository restructure (\texttt{179ef260}).} Consolidated layout: \texttt{firmware/eagleeye-main}, \texttt{backend}, \texttt{mobile-app}, \texttt{model-training}, \texttt{datasets}, \texttt{docs}, \texttt{\_archive}; sketch renamed to \texttt{eagleeye-main.ino}; manuals and README paths corrected. \\
 \textbf{Power-aware sensing (\texttt{d87859da}).} PIR on GPIO~14, deep sleep, timed AI windows, armed-state respect, camera/Wi-Fi de-init before sleep; SD disabled to free the PIR pin.
 
-\subsection{2 May 2026 (committed)}
-\textbf{Repository sync (\texttt{7dc9cc93}).} Latest commit on record for this date (short message in history).
+\subsection{2 May 2026 (\texttt{7dc9cc93})}
+\textbf{Live preview (first pass).} Git message is short; the merge introduced HTTP streaming from the camera (\texttt{esp\_http\_server}, MJPEG at \texttt{/} on port~80), integration in \texttt{eagleeye-main.ino}, initial \texttt{LiveMonitorScreen.js} (WebView-based), dashboard navigation to Live, \texttt{pir\_debug} test sketch, minor \texttt{bridge.py} edits, and test images under \texttt{backend/captures/}.
 
-\subsection{2 May 2026 (working tree --- detailed technical delta)}
-The following items reflect substantive edits present locally at report time; integrate them into the next commit to keep history aligned.
+\subsection{3 May 2026 (\texttt{3f6989fd})}
+\textbf{Live preview reliability + gallery bulk delete.} Firmware: \texttt{eagleeye\_grab\_jpeg()} and \texttt{GET /capture}; WebSocket binary JPEG stream on port~81 (\texttt{eagleeye\_ws.h}, WebSockets library); latch reset when preview ends so AI alerts work again. Mobile: WebSocket + \texttt{expo-image} live path, Android \texttt{usesCleartextTraffic}, remove unused \texttt{react-native-webview}; \textbf{Delete all} alerts with Cloudinary queue via \texttt{deletion\_requests}. Documentation: this \texttt{docs/daily\_changelog/} tree.
 
-\begin{enumerate}[leftmargin=*]
-  \item \textbf{Firmware --- HTTP snapshot API.} File \texttt{camera\_web\_server.h}: shared helper \texttt{eagleeye\_grab\_jpeg()} for single-frame JPEG extraction; \texttt{GET /capture} for mobile HTTP fallback; MJPEG stream on \texttt{GET /} unchanged. Include-guard typo corrected (erroneous leading character that broke preprocessing).
-  \item \textbf{Firmware --- WebSocket preview.} New \texttt{eagleeye\_ws.h}: binary JPEG push over WebSockets on port~81 (Arduino library: WebSockets by Markus Sattler). Reduces per-frame HTTP overhead versus repeated \texttt{/capture} polling.
-  \item \textbf{Firmware --- control flow.} \texttt{eagleeye-main.ino}: call \texttt{eagleeye\_ws\_begin()} after HTTP server start; service \texttt{eagleeye\_ws\_loop()} each iteration; while WebSocket clients are connected, AI inference is deferred (camera bandwidth). \textbf{Latch reset:} when WebSocket clients drop from one to zero, or when browser MJPEG streaming ends, \texttt{image\_sent\_this\_event}, \texttt{human\_confirmed}, and \texttt{clear\_scene\_count} reset so detections resume after closing Live Monitor (previously the latch could remain set because the AI loop did not run during preview).
-  \item \textbf{Mobile --- Live Monitor.} \texttt{LiveMonitorScreen.js}: primary path \texttt{ws://<camera-ip>:81} with binary frames rendered via \texttt{expo-image}; cleartext HTTP retained for camera URLs in \texttt{app.json} (\texttt{usesCleartextTraffic}). Legacy \texttt{react-native-webview} dependency removed from \texttt{package.json}.
-  \item \textbf{Mobile --- Gallery administration.} \texttt{useAlerts.js}: \texttt{deleteAllAlerts()} loads full \texttt{alerts} node, enqueues \texttt{public\_id} entries under \texttt{deletion\_requests} for Cloudinary cleanup by \texttt{bridge.py}, then removes \texttt{alerts}. \texttt{GalleryScreen.js}: confirmed \textbf{Delete all} control with loading state and modal dismissal.
-\end{enumerate}
-
-\textbf{Note:} Runtime JPEGs under \texttt{backend/captures/} may appear as untracked files during testing; exclude or gitignore per team policy. Local \texttt{secrets.h} changes (e.g.\ MQTT broker IP for hotspot vs.\ LAN) are not versioned by design.
+\subsection{6 May 2026 (\texttt{0c41c75e})}
+\textbf{Model-training hygiene (\texttt{refactor(model-training)}).} Experimental and superseded Python training scripts were moved into \texttt{model-training/\_archive/} (e.g.\ COCO/Colab helpers, colour-model variants, transfer-learning and verification utilities) so the active tree is not cluttered. The single \textbf{production} training entry point for the deployed greyscale TinyML model is consolidated under \texttt{model-training/worlable\_model/train\_tiny\_model.py} (48$\times$48 greyscale, ESP32-oriented). A new \texttt{sketchboard/} tree provides a \textbf{scratch workspace}: copies of the working trainer, a place for firmware experiments, \texttt{notes/}, and a README describing safe day-to-day experimentation without editing production paths.
 
 %------------------------------------------------------------------
 \section{Suggested maintenance}
