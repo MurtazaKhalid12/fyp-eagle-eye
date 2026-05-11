@@ -94,6 +94,15 @@ This document records project evolution in a professional, date-ordered format. 
 \subsection{6 May 2026 (\texttt{0c41c75e})}
 \textbf{Model-training hygiene (\texttt{refactor(model-training)}).} Experimental and superseded Python training scripts were moved into \texttt{model-training/\_archive/} (e.g.\ COCO/Colab helpers, colour-model variants, transfer-learning and verification utilities) so the active tree is not cluttered. The single \textbf{production} training entry point for the deployed greyscale TinyML model is consolidated under \texttt{model-training/worlable\_model/train\_tiny\_model.py} (48$\times$48 greyscale, ESP32-oriented). A new \texttt{sketchboard/} tree provides a \textbf{scratch workspace}: copies of the working trainer, a place for firmware experiments, \texttt{notes/}, and a README describing safe day-to-day experimentation without editing production paths.
 
+\subsection{8--9 May 2026}
+\textbf{ESP32-CAM Hard Negative Capturer.} Developed a local Python Flask server (\texttt{firmware/tools/hard\_negative\_capturer/}) paired with a custom ESP32 sketch to manually capture false positives/negatives. Images are POSTed over Wi-Fi and sorted into \texttt{Humans}/\texttt{NonHuman} datasets. Addressed system reboots (EV-VSYNC-OVF) and Watchdog Timer timeouts during inference.
+
+\subsection{9--10 May 2026}
+\textbf{ML Architecture Evaluation \& Presentation Prep.} Prepared to defend the Kaggle "Overthinkers" submission for CodeRush '26. Focused on validating the multi-model bagging/boosting pipeline, Optuna hyperparameter optimization, and adaptive blending logic.
+
+\subsection{11 May 2026}
+\textbf{Hard Negative Retraining.} Fine-tuned the custom tiny model in \texttt{sketchboard/} to integrate hard negative datasets, targeting 90\%+ accuracy. Added data augmentation (flip, rotate, zoom) in \texttt{train\_in\_sketchboard.py}. Exported updated INT8 \texttt{.tflite} models and generated C-headers (\texttt{human\_detect\_model\_data\_augmented.h}) for firmware integration.
+
 %------------------------------------------------------------------
 \section{Suggested maintenance}
 \begin{itemize}[nosep]

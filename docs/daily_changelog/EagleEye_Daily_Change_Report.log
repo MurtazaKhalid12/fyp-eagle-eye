@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.29 (MiKTeX 26.2) (preloaded format=pdflatex 2026.2.24)  6 MAY 2026 23:34
+This is pdfTeX, Version 3.141592653-2.6-1.40.29 (MiKTeX 26.2) (preloaded format=pdflatex 2026.2.24)  11 MAY 2026 19:12
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -545,22 +545,35 @@ odel-training)\T1/lmr/bx/n/10.95 (-20) ). \T1/lmr/m/n/10.95 (-20) Ex-per-i-men-
 tal and su-per-seded Python
  []
 
-[3{C:/Program Files/MiKTeX/fonts/enc/dvips/lm/lm-rm.enc}] [4]
-(EagleEye_Daily_Change_Report.aux)
+[3{C:/Program Files/MiKTeX/fonts/enc/dvips/lm/lm-rm.enc}]
+Overfull \hbox (160.39594pt too wide) in paragraph at lines 98--99
+\T1/lmr/bx/n/10.95 (-20) ESP32-CAM Hard Neg-a-tive Cap-turer. \T1/lmr/m/n/10.95
+ (-20) De-vel-oped a lo-cal Python Flask server (\T1/lmtt/m/n/10.95 firmware/to
+ols/hard_negative_capturer/\T1/lmr/m/n/10.95 (-20) )
+ []
+
+[4] (EagleEye_Daily_Change_Report.aux)
  ***********
 LaTeX2e <2025-11-01>
 L3 programming layer <2026-01-19>
  ***********
-Package rerunfilecheck Info: File `EagleEye_Daily_Change_Report.out' has not ch
-anged.
-(rerunfilecheck)             Checksum: 4563366D0F70A60CA5DE0D7464C424E6;2990.
+
+
+Package rerunfilecheck Warning: File `EagleEye_Daily_Change_Report.out' has cha
+nged.
+(rerunfilecheck)                Rerun to get outlines right
+(rerunfilecheck)                or use package `bookmark'.
+
+Package rerunfilecheck Info: Checksums for `EagleEye_Daily_Change_Report.out':
+(rerunfilecheck)             Before: 4563366D0F70A60CA5DE0D7464C424E6;2990
+(rerunfilecheck)             After:  11BFB1C33E90A68EACDCCAD7D1EDB188;3371.
  ) 
 Here is how much of TeX's memory you used:
- 12372 strings out of 467867
- 195165 string characters out of 5428372
+ 12377 strings out of 467867
+ 195230 string characters out of 5428372
  662646 words of memory out of 5000000
  40965 multiletter control sequences out of 15000+600000
- 680535 words of font info for 130 fonts, out of 8000000 for 9000
+ 680618 words of font info for 131 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
  75i,6n,79p,1027b,454s stack positions out of 10000i,1000n,20000p,200000b,200000s
 <C:/Program Files/MiKTeX/fonts/type1/public/lm/lmbx10.pfb><C:/Program Files/M
@@ -569,9 +582,9 @@ lic/lm/lmr10.pfb><C:/Program Files/MiKTeX/fonts/type1/public/lm/lmr12.pfb><C:/P
 rogram Files/MiKTeX/fonts/type1/public/lm/lmsy10.pfb><C:/Program Files/MiKTeX/f
 onts/type1/public/lm/lmtk10.pfb><C:/Program Files/MiKTeX/fonts/type1/public/lm/
 lmtt10.pfb><C:/Program Files/MiKTeX/fonts/type1/public/lm/lmtt12.pfb>
-Output written on EagleEye_Daily_Change_Report.pdf (4 pages, 234270 bytes).
+Output written on EagleEye_Daily_Change_Report.pdf (4 pages, 237762 bytes).
 PDF statistics:
- 180 PDF objects out of 1000 (max. 8388607)
- 26 named destinations out of 1000 (max. 500000)
+ 183 PDF objects out of 1000 (max. 8388607)
+ 29 named destinations out of 1000 (max. 500000)
  33441 words of extra memory for PDF output out of 35830 (max. 10000000)
 
