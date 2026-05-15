@@ -127,20 +127,20 @@ def build_ultratiny_model(num_classes: int) -> tf.keras.Model:
             layers.Input(shape=(IMG_HEIGHT, IMG_WIDTH, 1)),
             layers.Rescaling(1.0 / 127.5, offset=-1.0),
             data_augmentation,
-            layers.Conv2D(8, 3, strides=2, padding="same", activation="relu"),
-            layers.MaxPooling2D(),
             layers.Conv2D(16, 3, strides=2, padding="same", activation="relu"),
             layers.MaxPooling2D(),
-            layers.Conv2D(32, 3, padding="same", activation="relu"),
+            layers.Conv2D(32, 3, strides=2, padding="same", activation="relu"),
+            layers.MaxPooling2D(),
+            layers.Conv2D(64, 3, padding="same", activation="relu"),
             layers.GlobalAveragePooling2D(),
-            layers.Dropout(0.15),
+            layers.Dropout(0.2447),
             layers.Dense(num_classes, activation="softmax"),
         ],
         name="eagleeye_ultratiny_geometry_aug",
     )
 
     model.compile(
-        optimizer=tf.keras.optimizers.Adam(learning_rate=0.001),
+        optimizer=tf.keras.optimizers.Adam(learning_rate=0.003234),
         loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=False),
         metrics=["accuracy"],
     )
