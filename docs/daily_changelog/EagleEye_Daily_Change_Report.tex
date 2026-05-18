@@ -22,13 +22,13 @@
 \title{\textbf{EagleEye: Intelligent Edge AI Surveillance}\\[0.35em]
 \large Daily Change Report and Development History}
 \author{Project repository: \texttt{fyp-eagle-eye}}
-\date{Report revised: 19 May 2026 \\ \small Synced through the 16 May 2026 model validation work on \texttt{main}}
+\date{Report revised: 19 May 2026 \\ \small Synced through the May 2026 model and hard-negative capture work on \texttt{main}}
 
 \begin{document}
 \maketitle
 
 \begin{abstract}
-This document records project evolution in a professional, date-ordered format. Entries follow \texttt{git log} on \texttt{main}. The May 2026 additions now cover the model-training layout, hard-negative collection, knowledge distillation experiments, and the lessons learned while moving from lab training to ESP32-CAM validation.
+This document records project evolution in a professional, date-ordered format. Entries follow \texttt{git log} on \texttt{main}. The May 2026 additions now cover the model-training layout, hard-negative collection, knowledge distillation experiments, Edge Impulse grayscale testing, and the firmware/runtime lessons learned while moving from lab training to ESP32-CAM validation.
 \end{abstract}
 
 \tableofcontents
@@ -103,7 +103,7 @@ This document records project evolution in a professional, date-ordered format. 
 \subsection{11 May 2026}
 \textbf{Hard Negative Retraining.} Fine-tuned the custom tiny model in \texttt{sketchboard/} to integrate hard negative datasets, targeting 90\%+ accuracy. Added data augmentation (flip, rotate, zoom) in \texttt{train\_in\_sketchboard.py}. Exported updated INT8 \texttt{.tflite} models and generated C-headers (\texttt{human\_detect\_model\_data\_augmented.h}) for firmware integration.
 
-\subsection{16 May 2026}
+\subsection{16 May 2026 (\texttt{60b59617})}
 \textbf{Distillation and validation pass.} The work moved beyond the earlier single hard-negative retraining loop and tested a more systematic model-improvement path. Fresh ESP32-CAM validation captures were added under \texttt{sketchboard/dataset/}, the exported model header was refreshed in \texttt{sketchboard/human\_detect\_model\_data.h}, and the training/evaluation scripts under \texttt{sketchboard/knowledge\_distillation/} were used to compare a larger teacher model with a smaller ESP32-friendly student model.
 
 \textbf{Changed files.} Key files for this day include \texttt{sketchboard/dataset/*20260516*.jpg}, \texttt{sketchboard/knowledge\_distillation/train\_teacher.py}, \texttt{train\_distillation.py}, \texttt{train\_kd\_optuna.py}, \texttt{evaluate\_tflite.py}, \texttt{sketchboard/train\_optuna\_cv.py}, \texttt{sketchboard/sketchboard\_hard\_negative\_90plus\_metrics.json}, and the generated model header used by sketchboard firmware tests.
@@ -111,6 +111,17 @@ This document records project evolution in a professional, date-ordered format. 
 \textbf{New method.} Instead of only adding more hard-negative images and retraining the same tiny network, this pass used a teacher/student knowledge distillation workflow. Optuna was introduced to search for better distillation settings such as learning rate, dropout, temperature, and alpha, making the model selection process more explainable than manual tuning.
 
 \textbf{Result / lesson.} The experiment showed a practical direction for improving accuracy without forgetting the ESP32-CAM constraint: the student model still needs to stay small and fast, but it can learn from a stronger teacher and be judged with repeatable metrics rather than only live ad-hoc tests.
+
+\subsection{17 May 2026}
+\textbf{Hard-negative capture expansion and Edge Impulse deployment test.} This day focused on collecting a larger real-camera dataset and checking which model export path was actually usable on the ESP32-CAM. New human and non-human captures were added under \texttt{sketchboard/dataset/Humans/} and \texttt{sketchboard/dataset/NonHuman/}, while older tracked capture files from 9--13 May were cleaned out where they had been superseded by the newer organized run.
+
+\textbf{Changed files.} Important files include \texttt{sketchboard/dataset/*20260517*.jpg}, \texttt{sketchboard/firmware/hard\_negative\_capturer/hard\_negative\_capturer.ino}, \texttt{collect\_hard\_negatives.py}, \texttt{simple\_server.py}, \texttt{firmware/tools/hard\_negative\_capturer/}, \texttt{models/MODEL\_VERSIONS.md}, \texttt{models/tflite\_to\_cpp\_header.py}, and archived model headers such as \texttt{model\_v1.0\_baseline.h}, \texttt{model\_v6.0\_edge\_impulse\_final.h}, and \texttt{model\_v6.1\_edge\_impulse\_grayscale.h}.
+
+\textbf{New method.} The comparison changed from ``does the model classify this image?'' to ``which deployment path behaves correctly on hardware?'' The older Edge Impulse RGB export expected \texttt{48x48x3} input, while the newer grayscale export used \texttt{48x48x1}, matching the firmware pipeline. The sketchboard firmware was simplified into a serial-only detector so testing could focus on clear \texttt{Human detected} / \texttt{Not detected} output and timing logs instead of the earlier Wi-Fi/web UI flow.
+
+\textbf{Firmware/runtime lesson.} The ESP32 tests also exposed a runtime cost: broad \texttt{AllOpsResolver} usage can make inference unnecessarily heavy. The hard-negative capturer path therefore moved toward \texttt{MicroMutableOpResolver}, registering only the operations required by the selected model. The Flask capture server was made easier to debug with a \texttt{/test} endpoint, GET/POST handling on \texttt{/save}, and request-size logging so upload problems are visible during collection.
+
+\textbf{Documentation link.} \texttt{README.md}, \texttt{PROJECT\_MANUAL\_START.md}, and \texttt{models/MODEL\_VERSIONS.md} were updated around this workflow so the report, setup guide, and model archive describe the same RGB-vs-grayscale decision and the same hard-negative capture process.
 
 
 %------------------------------------------------------------------

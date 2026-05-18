@@ -77,7 +77,19 @@ To run the mobile app on a physical Android device connected via USB.
 *   **Bridge Terminal:** You should see the success message:
     > `[Success] Bridge Connected to Local Mosquitto! Listening for intruders...`
 
-## 6. Troubleshooting
+## 6. Optional: Sketchboard hard-negative capturer (Edge Impulse model)
+For dataset collection / EI model smoke tests (not production `eagleeye-main`):
+
+1. Canonical weights: `models/model_v6.1_edge_impulse_grayscale.tflite` (48×48 grayscale, Studio project 1000575).
+2. Flash `sketchboard/firmware/hard_negative_capturer/hard_negative_capturer.ino` (serial-only: prints `Human detected` / `Not detected`).
+3. On the PC (same Wi‑Fi/hotspot as ESP32 if using upload mode): `python sketchboard/firmware/hard_negative_capturer/collect_hard_negatives.py` → saves to `sketchboard/dataset/`.
+
+See `models/MODEL_VERSIONS.md` and `tools/edge_impulse/` for re-downloading from Studio.
+
+---
+
+## 7. Troubleshooting
 *   **"Mosquitto not found"**: Ensure Mosquitto is in your system's Environment Variables (Path).
 *   **Connection Refused**: Check if your firewall is blocking port 1883 or if the IP address in `mosquitto.conf` and `bridge.py` matches your computer's current IP.
 *   **IP Changed**: Run `ipconfig` and update the broker IP in both `backend/bridge.py` (line 16) and `firmware/eagleeye-main/secrets.h`.
+*   **EI model input size**: use **v6.1 grayscale** (`2304` bytes). The older **v6.0 RGB** model needs `6912` bytes — do not mix firmware and `.tflite` versions.

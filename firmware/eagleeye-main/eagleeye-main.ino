@@ -208,7 +208,7 @@ void setup() {
   Serial.println("\n\n=================================================");
   Serial.println(">>> EAGLEEYE: AI SURVEILLANCE SYSTEM <<<");
   Serial.println(">>> [TEMP] DIRECT DETECTION MODE - PIR DISABLED <<<");
-  Serial.println(">>> Greyscale Model (48x48x1) <<<");
+  Serial.println(">>> Greyscale Model (96x96x1) <<<");
   Serial.println("=================================================");
   Serial.println(">>> WAKE REASON: Direct boot (no PIR check) <<<");
   Serial.println("=================================================\n");
