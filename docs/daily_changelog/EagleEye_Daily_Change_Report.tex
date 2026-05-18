@@ -22,13 +22,13 @@
 \title{\textbf{EagleEye: Intelligent Edge AI Surveillance}\\[0.35em]
 \large Daily Change Report and Development History}
 \author{Project repository: \texttt{fyp-eagle-eye}}
-\date{Report revised: 6 May 2026 \\ \small Synced to latest commit \texttt{0c41c75e} on \texttt{main}}
+\date{Report revised: 19 May 2026 \\ \small Synced through the 16 May 2026 model validation work on \texttt{main}}
 
 \begin{document}
 \maketitle
 
 \begin{abstract}
-This document records project evolution in a professional, date-ordered format. Entries follow \texttt{git log} on \texttt{main}. The \textbf{6 May 2026} section documents the most recent committed work (model-training layout and \texttt{sketchboard/} workspace). Earlier May entries summarize firmware live preview, mobile gallery tools, and related commits \texttt{7dc9cc93} and \texttt{3f6989fd}.
+This document records project evolution in a professional, date-ordered format. Entries follow \texttt{git log} on \texttt{main}. The May 2026 additions now cover the model-training layout, hard-negative collection, knowledge distillation experiments, and the lessons learned while moving from lab training to ESP32-CAM validation.
 \end{abstract}
 
 \tableofcontents
@@ -102,6 +102,16 @@ This document records project evolution in a professional, date-ordered format. 
 
 \subsection{11 May 2026}
 \textbf{Hard Negative Retraining.} Fine-tuned the custom tiny model in \texttt{sketchboard/} to integrate hard negative datasets, targeting 90\%+ accuracy. Added data augmentation (flip, rotate, zoom) in \texttt{train\_in\_sketchboard.py}. Exported updated INT8 \texttt{.tflite} models and generated C-headers (\texttt{human\_detect\_model\_data\_augmented.h}) for firmware integration.
+
+\subsection{16 May 2026}
+\textbf{Distillation and validation pass.} The work moved beyond the earlier single hard-negative retraining loop and tested a more systematic model-improvement path. Fresh ESP32-CAM validation captures were added under \texttt{sketchboard/dataset/}, the exported model header was refreshed in \texttt{sketchboard/human\_detect\_model\_data.h}, and the training/evaluation scripts under \texttt{sketchboard/knowledge\_distillation/} were used to compare a larger teacher model with a smaller ESP32-friendly student model.
+
+\textbf{Changed files.} Key files for this day include \texttt{sketchboard/dataset/*20260516*.jpg}, \texttt{sketchboard/knowledge\_distillation/train\_teacher.py}, \texttt{train\_distillation.py}, \texttt{train\_kd\_optuna.py}, \texttt{evaluate\_tflite.py}, \texttt{sketchboard/train\_optuna\_cv.py}, \texttt{sketchboard/sketchboard\_hard\_negative\_90plus\_metrics.json}, and the generated model header used by sketchboard firmware tests.
+
+\textbf{New method.} Instead of only adding more hard-negative images and retraining the same tiny network, this pass used a teacher/student knowledge distillation workflow. Optuna was introduced to search for better distillation settings such as learning rate, dropout, temperature, and alpha, making the model selection process more explainable than manual tuning.
+
+\textbf{Result / lesson.} The experiment showed a practical direction for improving accuracy without forgetting the ESP32-CAM constraint: the student model still needs to stay small and fast, but it can learn from a stronger teacher and be judged with repeatable metrics rather than only live ad-hoc tests.
+
 
 %------------------------------------------------------------------
 \section{Suggested maintenance}
