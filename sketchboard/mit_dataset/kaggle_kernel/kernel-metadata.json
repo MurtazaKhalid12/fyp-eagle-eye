@@ -1,0 +1,16 @@
+{
+  "id": "murtaza1234/train-mobilenet-esp32",
+  "title": "Train MobileNet ESP32",
+  "code_file": "debug.py",
+  "language": "python",
+  "kernel_type": "script",
+  "is_private": "true",
+  "enable_gpu": "true",
+  "enable_internet": "true",
+  "dataset_sources": [
+    "murtaza1234/fyp-eagle-eye-merged-data"
+  ],
+  "competition_sources": [],
+  "kernel_sources": [],
+  "model_sources": []
+}

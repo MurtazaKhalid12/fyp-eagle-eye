@@ -5,6 +5,10 @@
  *
  *  - Core 1: Camera capture + WebSocket video broadcast (~15 FPS)
  *  - Core 0: TFLite inference (runs in parallel, never blocks video)
+ *
+ *  Latency: retraining RGB->grayscale does NOT fix ~3 s Invoke(); use
+ *  MicroMutableOpResolver (below). For EI v6.1 grayscale + serial timing,
+ *  flash sketchboard/firmware/hard_negative_capturer/ instead.
  *  - Web UI: Shows live AI scores + capture buttons
  *  - Captures go to Python receiver via HTTP POST
  * ============================================================
@@ -17,11 +21,11 @@
 #include <WebSocketsServer.h>
 #include <HTTPClient.h>
 #include <TensorFlowLite_ESP32.h>
-#include "tensorflow/lite/micro/all_ops_resolver.h"
+#include "tensorflow/lite/micro/micro_mutable_op_resolver.h"
 #include "tensorflow/lite/micro/micro_error_reporter.h"
 #include "tensorflow/lite/micro/micro_interpreter.h"
 #include "tensorflow/lite/schema/schema_generated.h"
-#include "human_detect_model_data.h"
+#include "human_detect_model_data_v1_0_baseline.h"
 
 // ============================================================
 //  CONFIG — Edit these!
@@ -345,10 +349,20 @@ void startCtrlServer() {
 // ============================================================
 void setup() {
     Serial.begin(115200);
-    Serial.println("\n\n=== EagleEye Hard Negative Capturer ===");
+    setCpuFrequencyMhz(240);
+    Serial.println("\n\n=== EagleEye Hard Negative Capturer (WiFi) ===");
 
     // Flash LED off
     pinMode(4, OUTPUT); digitalWrite(4, LOW);
+
+    // --- WiFi (Started BEFORE camera to prevent EV-VSYNC-OVF frame drops) ---
+    WiFi.mode(WIFI_STA);
+    WiFi.disconnect(true);
+    delay(100);
+    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+    Serial.print("[..] WiFi");
+    while (WiFi.status() != WL_CONNECTED) { delay(500); Serial.print("."); }
+    Serial.printf("\n[OK] WiFi connected — http://%s\n", WiFi.localIP().toString().c_str());
 
     // --- Camera ---
     camera_config_t cam;
@@ -370,20 +384,20 @@ void setup() {
     }
     Serial.println("[OK] Camera: RGB565 QVGA");
 
-    // --- WiFi ---
-    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-    Serial.print("[..] WiFi");
-    while (WiFi.status() != WL_CONNECTED) { delay(400); Serial.print("."); }
-    Serial.printf("\n[OK] WiFi connected — http://%s\n", WiFi.localIP().toString().c_str());
-
     // --- TFLite ---
     tensor_arena = psramFound()
         ? (uint8_t*)ps_malloc(TENSOR_ARENA_KB * 1024)
         : (uint8_t*)malloc(TENSOR_ARENA_KB * 1024);
     if (!tensor_arena) { Serial.println("[ERR] No memory!"); while(1); }
 
-    tfl_model = tflite::GetModel(g_human_detect_model_data);
-    static tflite::AllOpsResolver resolver;
+    tfl_model = tflite::GetModel(g_human_detect_model_data_v1_0_baseline);
+    // AllOpsResolver caused ~3 s Invoke() on ESP32; register only what v1 uses
+    static tflite::MicroMutableOpResolver<6> resolver;
+    resolver.AddConv2D();
+    resolver.AddMaxPool2D();
+    resolver.AddFullyConnected();
+    resolver.AddReshape();
+    resolver.AddSoftmax();
     static tflite::MicroInterpreter interp(tfl_model, resolver,
                                            tensor_arena, TENSOR_ARENA_KB * 1024,
                                            error_reporter);

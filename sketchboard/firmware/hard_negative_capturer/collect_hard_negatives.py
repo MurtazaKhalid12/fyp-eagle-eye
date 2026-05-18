@@ -37,13 +37,20 @@ NONHUMAN_DIR.mkdir(parents=True, exist_ok=True)
 # ──────────────────────────────────────────────────────────────
 #  Flask app
 # ──────────────────────────────────────────────────────────────
-log = logging.getLogger("werkzeug")
-log.setLevel(logging.WARNING)        # hide the per-request spam
+# SHOW ALL REQUESTS in terminal for debugging
+logging.basicConfig(level=logging.DEBUG)
 
 app = Flask(__name__)
 
-@app.route("/save", methods=["POST"])
+@app.route("/test", methods=["GET"])
+def test():
+    print("[TEST] Someone hit /test - server is reachable!")
+    return "Server is working!", 200
+
+@app.route("/save", methods=["GET", "POST"])
 def save():
+    print(f"[DEBUG] /save hit! Method={request.method}, Args={dict(request.args)}, Body size={len(request.data)} bytes")
+
     label = request.args.get("label", "").strip().lower()
     if label not in ("human", "nonhuman"):
         return jsonify(ok=False, error="label must be 'human' or 'nonhuman'"), 400
@@ -58,17 +65,21 @@ def save():
     path = dest / name
     path.write_bytes(data)
 
-    print(f"[SAVED] {label.upper():>8s} → {path.name}")
+    print(f"[SAVED] {label.upper():>8s} -> {path.name}")
     return f"Saved {name}", 200
 
 
 if __name__ == "__main__":
     print("\n" + "=" * 52)
-    print("   EagleEye  —  Hard Negative Capturer (WiFi)")
+    print("   EagleEye  -  Hard Negative Capturer (WiFi)")
     print("=" * 52)
-    print(f"  Humans   → {HUMAN_DIR}")
-    print(f"  NonHuman → {NONHUMAN_DIR}")
-    print("\n  Waiting for captures from the ESP32-CAM...")
+    print(f"  Humans   -> {HUMAN_DIR}")
+    print(f"  NonHuman -> {NONHUMAN_DIR}")
+    print()
+    print("  TEST URL: http://192.168.137.1:8000/test")
+    print("  (Open this in your browser to verify server works)")
+    print()
+    print("  Waiting for captures from the ESP32-CAM...")
     print("  (Flash hard_negative_capturer.ino, then open")
     print("   http://<ESP32-IP> in your browser)\n")
     app.run(host="0.0.0.0", port=8000, threaded=True, use_reloader=False)

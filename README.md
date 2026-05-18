@@ -30,7 +30,7 @@ graph TD
 
 ### 1. The Edge Layer (`firmware/`)
 *   **Hardware**: AI-Thinker ESP32-CAM.
-*   **AI Model**: Custom-trained 48×48×1 greyscale INT8 quantized CNN.
+*   **AI Model**: Custom-trained 48×48×1 greyscale INT8 CNN on device (`eagleeye-main`). An Edge Impulse RGB variant is archived under `models/` (see `models/MODEL_VERSIONS.md`).
 *   **Logic**: Captures at QVGA (320×240), center-crops to 240×240 (no distortion), resizes to 48×48 for inference (~106ms). Upon detection, captures high-res color JPEG with flash and sends via MQTT.
 
 ### 2. The Cloud Gateway (`backend/`)
@@ -61,9 +61,15 @@ fyp-eagle-eye/
 │   └── captures/          # Locally saved intrusion images
 ├── mobile-app/            # React Native (Expo) mobile app
 │   └── src/               # Screens, components, config, hooks
+├── models/                # Canonical .tflite archives + MODEL_VERSIONS.md
+│   ├── model_v1.0_baseline.tflite
+│   ├── model_v6.1_edge_impulse_grayscale.tflite  # EI project 1000575 (48×48 gray)
+│   ├── model_v6.0_edge_impulse_final.tflite      # older RGB EI export
+│   └── tflite_to_cpp_header.py
 ├── model-training/        # ML model training scripts
 │   ├── train_tiny_model.py  # Active model training script
-│   └── exported-models/   # Output .tflite models
+│   └── exported-models/   # Output .tflite models (incl. EI copy)
+├── tools/edge_impulse/    # Upload / train / download from Edge Impulse Studio
 ├── datasets/              # Training datasets
 ├── docs/                  # Papers, presentations, diagrams
 │   ├── presentations/
@@ -110,7 +116,7 @@ fyp-eagle-eye/
 ---
 
 ## 🛠️ Tech Stack & Credits
-*   **Edge AI**: TensorFlow Lite Micro (Custom-trained CNN)
+*   **Edge AI**: TensorFlow Lite Micro (custom grayscale CNN + optional Edge Impulse classifier in `models/`)
 *   **Communication**: Local MQTT via Mosquitto Broker
 *   **Cloud**: Cloudinary (image storage) + Firebase Realtime Database
 *   **Mobile**: React Native + Expo
