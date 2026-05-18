@@ -112,7 +112,7 @@ This document records project evolution in a professional, date-ordered format. 
 
 \textbf{Result / lesson.} The experiment showed a practical direction for improving accuracy without forgetting the ESP32-CAM constraint: the student model still needs to stay small and fast, but it can learn from a stronger teacher and be judged with repeatable metrics rather than only live ad-hoc tests.
 
-\subsection{17 May 2026}
+\subsection{17 May 2026 (\texttt{a07039ba})}
 \textbf{Hard-negative capture expansion and Edge Impulse deployment test.} This day focused on collecting a larger real-camera dataset and checking which model export path was actually usable on the ESP32-CAM. New human and non-human captures were added under \texttt{sketchboard/dataset/Humans/} and \texttt{sketchboard/dataset/NonHuman/}, while older tracked capture files from 9--13 May were cleaned out where they had been superseded by the newer organized run.
 
 \textbf{Changed files.} Important files include \texttt{sketchboard/dataset/*20260517*.jpg}, \texttt{sketchboard/firmware/hard\_negative\_capturer/hard\_negative\_capturer.ino}, \texttt{collect\_hard\_negatives.py}, \texttt{simple\_server.py}, \texttt{firmware/tools/hard\_negative\_capturer/}, \texttt{models/MODEL\_VERSIONS.md}, \texttt{models/tflite\_to\_cpp\_header.py}, and archived model headers such as \texttt{model\_v1.0\_baseline.h}, \texttt{model\_v6.0\_edge\_impulse\_final.h}, and \texttt{model\_v6.1\_edge\_impulse\_grayscale.h}.
