@@ -77,6 +77,18 @@ This document tracks the evolution of the `EagleEye` human detection models, det
 * **Also at:** `model-training/exported-models/model_v6.1_edge_impulse_grayscale.tflite`, `sketchboard/ei_grayscale_int8.tflite`
 * **Optional firmware header:** `firmware/tools/hard_negative_capturer/human_detect_model_data_ei_grayscale.h`
 
+## `model_v7.0_rgb96_mobilenetv1_a2_int8` (current sketchboard EI model)
+* **Architecture:** Pretrained MobileNetV1 transfer model, width multiplier `0.2`, 96×96 RGB input, INT8 quantized.
+* **Purpose:** Replaces the earlier 48×48 grayscale custom-tiny experiments for sketchboard live testing. The custom model family was very fast, but its tiny parameter budget and grayscale 48×48 input removed too much human shape/detail for robust generalization in real camera scenes.
+* **Methods:**
+  * Switched the input pipeline from 48×48 grayscale to 96×96 RGB so the model can use body outline, posture, clothing contrast, and scene context.
+  * Used a pretrained MobileNetV1 backbone with a 32-neuron classification head and `0.25` dropout.
+  * Trained with class weights, full image augmentation, 40 epochs, learning rate `0.00035`, and batch size `16`.
+  * Built an Arduino library package with ESP-NN disabled because earlier ESP32-CAM S1 testing showed saturated wrong predictions with the optimized path.
+* **Validation:** INT8 validation accuracy `89.86%`; human precision `~95.2%`, human recall `~83.1%`, human F1 `~88.1%`.
+* **Trade-offs:** Higher latency than the smallest custom CNN, but much better generalization. This model represents the current best balance between accuracy, latency, memory, and reliability for the sketchboard ESP32-CAM S1 experiments.
+* **Firmware:** `sketchboard/firmware/hard_negative_capturer/hard_negative_capturer.ino` now uses the installed `final_inferencing` Arduino library for the Wi-Fi AI-assisted hard-negative capture workflow.
+
 ---
 **Note:** All models are formatted as INT8 quantized TensorFlow Lite (`.tflite`) files. To deploy to the ESP32, convert with `models/tflite_to_cpp_header.py`.
 
@@ -85,3 +97,4 @@ This document tracks the evolution of the `EagleEye` human detection models, det
 | `model_v1.0_baseline.tflite` | `models/model_v1.0_baseline.h` | Production `eagleeye-main` / `firmware/tools/hard_negative_capturer` (v1 baseline header) |
 | `model_v6.1_edge_impulse_grayscale.tflite` | `models/model_v6.1_edge_impulse_grayscale.h` | Sketchboard / EI live test (48×48 grayscale) |
 | `model_v6.0_edge_impulse_final.tflite` | `models/model_v6.0_edge_impulse_final.h` | Deprecated RGB export (6912-byte input) |
+| `model_v7.0_rgb96_mobilenetv1_a2_int8` | `third_party/ei_arduino_library_rgb96_mobilenetv1_a2_no_espnn.zip` | Current sketchboard Wi-Fi EI hard-negative capturer (96×96 RGB MobileNetV1 0.2) |

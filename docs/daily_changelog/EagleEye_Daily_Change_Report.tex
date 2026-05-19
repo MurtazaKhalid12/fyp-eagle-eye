@@ -22,13 +22,13 @@
 \title{\textbf{EagleEye: Intelligent Edge AI Surveillance}\\[0.35em]
 \large Daily Change Report and Development History}
 \author{Project repository: \texttt{fyp-eagle-eye}}
-\date{Report revised: 19 May 2026 \\ \small Synced through the May 2026 model and hard-negative capture work on \texttt{main}}
+\date{Report revised: 19 May 2026 \\ \small Synced through the 96$\times$96 RGB MobileNetV1 0.2 sketchboard deployment and AI-assisted hard-negative capture update}
 
 \begin{document}
 \maketitle
 
 \begin{abstract}
-This document records project evolution in a professional, date-ordered format. Entries follow \texttt{git log} on \texttt{main}. The May 2026 additions now cover the model-training layout, hard-negative collection, knowledge distillation experiments, Edge Impulse grayscale testing, and the firmware/runtime lessons learned while moving from lab training to ESP32-CAM validation.
+This document records project evolution in a professional, date-ordered format. Entries follow \texttt{git log} on \texttt{main}. The May 2026 additions now cover the model-training layout, hard-negative collection, knowledge distillation experiments, Edge Impulse grayscale/RGB testing, and the firmware/runtime lessons learned while moving from lab training to ESP32-CAM validation.
 \end{abstract}
 
 \tableofcontents
@@ -122,6 +122,17 @@ This document records project evolution in a professional, date-ordered format. 
 \textbf{Firmware/runtime lesson.} The ESP32 tests also exposed a runtime cost: broad \texttt{AllOpsResolver} usage can make inference unnecessarily heavy. The hard-negative capturer path therefore moved toward \texttt{MicroMutableOpResolver}, registering only the operations required by the selected model. The Flask capture server was made easier to debug with a \texttt{/test} endpoint, GET/POST handling on \texttt{/save}, and request-size logging so upload problems are visible during collection.
 
 \textbf{Documentation link.} \texttt{README.md}, \texttt{PROJECT\_MANUAL\_START.md}, and \texttt{models/MODEL\_VERSIONS.md} were updated around this workflow so the report, setup guide, and model archive describe the same RGB-vs-grayscale decision and the same hard-negative capture process.
+
+\subsection{19 May 2026}
+\textbf{RGB MobileNetV1 0.2 model selection and ESP32-CAM runtime debugging.} The project moved from the earlier $48{\times}48$ greyscale custom-tiny path toward a stronger $96{\times}96$ RGB transfer-learning pipeline for sketchboard experiments. The motivation was practical: the $\sim$5k-parameter custom CNN delivered low latency, but failed to generalize reliably in real camera scenes because the $48{\times}48$ greyscale crop removed too much human detail. The new candidate uses a pretrained MobileNetV1 backbone with width multiplier 0.2, a 32-neuron head, 0.25 dropout, class weighting, full image augmentation, 40 epochs, learning rate 0.00035, and batch size 16.
+
+\textbf{Validation result.} The selected INT8 deployment reached 89.86\% validation accuracy with a confusion matrix of \texttt{[[59, 12], [3, 74]]} in label order \texttt{human}, \texttt{nonhuman}. This corresponds to approximately 95.2\% human precision, 83.1\% human recall, and 88.1\% human F1. The result documents the core TinyML trade-off for EagleEye: the smallest possible model is not necessarily the best model; the deployed model must balance accuracy, latency, memory, and real-world reliability on the ESP32-CAM S1.
+
+\textbf{Firmware/runtime lesson.} Side-by-side PC and device checks showed that the camera/preprocessing path and the inference engine must be validated together. Earlier ESP32-CAM tests exposed saturated incorrect predictions when ESP-NN acceleration was enabled for the RGB MobileNet path, while the non-accelerated TFLite Micro path produced correct results. The generated Arduino library was therefore packaged with ESP-NN disabled for correctness on this target.
+
+\textbf{Hard-negative capture update.} \texttt{sketchboard/firmware/hard\_negative\_capturer/hard\_negative\_capturer.ino} was converted from the old serial-only $48{\times}48$ greyscale TFLite sketch into a Wi-Fi AI-assisted hard-negative capturer using the installed \texttt{final\_inferencing} library. It now serves a browser UI, streams JPEG frames over WebSocket, exposes \texttt{/ai} for live human/nonhuman scores, and posts labelled JPEGs to the sketchboard Python receiver at \texttt{/save}. This restores the same workflow as the original hard-negative capturer while testing the new $96{\times}96$ RGB MobileNetV1 model.
+
+\textbf{New/updated tooling.} Added a repeatable training script, \texttt{tools/edge\_impulse/retrain\_rgb\_96\_mobilenetv1\_a2\_smart\_no\_espnn.py}, and kept diagnostic helpers under \texttt{tools/diag/} for ESP32 frame dumps and PC/device inference comparison. \texttt{models/MODEL\_VERSIONS.md} was updated to record the architecture, metrics, and deployment trade-offs for the new sketchboard model.
 
 
 %------------------------------------------------------------------
