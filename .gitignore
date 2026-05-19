@@ -7,6 +7,9 @@ serviceAccountKey.json
 __pycache__/
 *.py[cod]
 *$py.class
+venv/
+.venv/
+.conda_env/
 
 # Arduino / ESP32
 *.bin
@@ -20,3 +23,9 @@ Human_Detection_Dataset/
 *.tflite
 *.zip
 Human-vs-NonHuman/
+models/eval_cache/
+models/eval_samples/
+sketchboard/mit_dataset/dataset/
+sketchboard/mit_dataset/merged_dataset/
+third_party/
+tools/diag/last_esp32_frame.png
