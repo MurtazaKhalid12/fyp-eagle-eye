@@ -128,13 +128,6 @@ void aiTask(void*) {
             g_is_human = (human >= HUMAN_THRESHOLD && human > nonhuman);
             g_last_dsp_ms = result.timing.dsp;
             g_last_classification_ms = result.timing.classification;
-
-            Serial.printf("EI: human %.3f nonhuman %.3f | DSP %d ms | cls %d ms | %s\n",
-                          human, nonhuman, result.timing.dsp,
-                          result.timing.classification,
-                          g_is_human ? "Human detected" : "Not detected");
-        } else {
-            Serial.printf("[ERR] run_classifier %d\n", (int)err);
         }
 
         g_ai_busy = false;
@@ -292,7 +285,6 @@ static esp_err_t h_capture(httpd_req_t* req) {
     if (code > 0 && code < 400) {
         httpd_resp_send(req, "Saved", HTTPD_RESP_USE_STRLEN);
     } else {
-        Serial.printf("[capture] upload failed code=%d url=%s\n", code, url.c_str());
         httpd_resp_set_status(req, "502 Bad Gateway");
         httpd_resp_send(req, "Upload failed - is Python receiver running and PC_RECEIVER correct?", HTTPD_RESP_USE_STRLEN);
     }
@@ -310,7 +302,6 @@ void startCtrlServer() {
         httpd_register_uri_handler(ctrl_httpd, &u1);
         httpd_register_uri_handler(ctrl_httpd, &u2);
         httpd_register_uri_handler(ctrl_httpd, &u3);
-        Serial.println("[OK] HTTP server on port 80");
     }
 }
 
@@ -374,18 +365,6 @@ void setup() {
     WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0);
     setCpuFrequencyMhz(240);
 
-    Serial.println("\n\n=== EagleEye Sketchboard EI Hard Negative Capturer ===");
-    Serial.printf("[model] project %d deploy v%d | input %dx%d RGB\n",
-                  (int)EI_CLASSIFIER_PROJECT_ID,
-                  (int)EI_CLASSIFIER_PROJECT_DEPLOY_VERSION,
-                  EI_CLASSIFIER_INPUT_WIDTH,
-                  EI_CLASSIFIER_INPUT_HEIGHT);
-#if EI_CLASSIFIER_TFLITE_ENABLE_ESP_NN
-    Serial.println("[build] ESP-NN: ENABLED");
-#else
-    Serial.println("[build] ESP-NN: DISABLED");
-#endif
-
     pinMode(4, OUTPUT);
     digitalWrite(4, LOW);
 
@@ -393,27 +372,22 @@ void setup() {
     WiFi.disconnect(true);
     delay(100);
     WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-    Serial.print("[..] WiFi");
     while (WiFi.status() != WL_CONNECTED) {
         delay(500);
-        Serial.print(".");
     }
-    Serial.printf("\n[OK] WiFi connected - open http://%s\n", WiFi.localIP().toString().c_str());
-    Serial.printf("[OK] Python receiver: %s\n", PC_RECEIVER);
+    Serial.printf("Open http://%s\n", WiFi.localIP().toString().c_str());
 
     if (!camera_init()) {
-        Serial.println("[ERR] Camera init failed");
+        Serial.println("Camera init failed");
         while (1) delay(1000);
     }
-    Serial.println("[OK] Camera: RGB565 QVGA");
 
     startCtrlServer();
     wsServer.begin();
-    Serial.println("[OK] WebSocket stream on port 81");
 
-    xTaskCreatePinnedToCore(aiTask, "EI_AI", 16384, nullptr, 1, &aiTaskHandle, 0);
-    Serial.println("[OK] EI AI task on Core 0");
-    Serial.println("=== Ready ===\n");
+    // Inference runs on Core 0. Keep its priority high so WiFi/stream activity
+    // on the same core preempts it as little as possible.
+    xTaskCreatePinnedToCore(aiTask, "EI_AI", 16384, nullptr, 2, &aiTaskHandle, 0);
 }
 
 void loop() {
@@ -438,7 +412,12 @@ void loop() {
         xTaskNotifyGive(aiTaskHandle);
     }
 
-    if (wsServer.connectedClients() > 0) {
+    // Throttle the live preview to ~5 fps. JPEG encode + WiFi broadcast run on
+    // Core 0 alongside the inference task; streaming every frame starves it and
+    // slows detections. 200 ms keeps a usable preview while freeing the AI core.
+    static uint32_t lastStream = 0;
+    if (wsServer.connectedClients() > 0 && millis() - lastStream >= 200) {
+        lastStream = millis();
         uint8_t* jpg = nullptr;
         size_t jlen = 0;
         if (frame2jpg(fb, 35, &jpg, &jlen)) {
