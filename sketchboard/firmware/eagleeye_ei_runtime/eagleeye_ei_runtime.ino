@@ -1,23 +1,28 @@
 /*
  * EagleEye — Edge Impulse runtime sketch (Option A)
- * ESP32-CAM AI Thinker, 48x48 grayscale human detector
+ * ESP32-CAM AI Thinker, 96x96 RGB human detector
+ * Model: rgb96_mobilenetv1 (no ESP-NN), 2 classes (human / nonhuman)
  *
- * Uses the FULL Edge Impulse Arduino library (with ESP-NN) and run_classifier().
- * Expected invoke latency: roughly Studio's quoted ~800 ms or better,
- * vs ~2200 ms with raw .tflite on TensorFlowLite_ESP32.
+ * Feeds the model TRUE RGB (3-channel) input — the QVGA RGB565 frame is
+ * centre-cropped and resized to 96x96, keeping real R/G/B per pixel.
  *
- * Setup:
- *   1. Run  tools/edge_impulse/download_ei_arduino_library.py
- *   2. Arduino IDE > Sketch > Include Library > Add .ZIP Library
- *      pick  third_party/ei_arduino_library_v6_1.zip
- *   3. Update the #include below to match the library name printed by the
- *      download script (it derives from the EI project name).
+ * Uses the FULL Edge Impulse Arduino library and run_classifier().
+ *
+ * Setup (fast model swap — no full library re-add / no minutes-long recompile):
+ *   1. Make sure the final_inferencing library is installed once (Add .ZIP Library).
+ *   2. Swap in just the model files for this model:
+ *        python tools/edge_impulse/swap_ei_model.py \
+ *          third_party/ei_arduino_library_rgb96_mobilenetv1_no_espnn.zip
+ *      This replaces only src/model-parameters, src/tflite-model and
+ *      ei_classifier_config.h, leaving the cached edge-impulse-sdk untouched
+ *      so Arduino recompiles in seconds.
+ *   3. In Arduino IDE just press Compile/Upload (do NOT re-Add the .ZIP).
  *
  * Serial @115200 prints both the EI timing line and a final
  *   "Human detected" / "Not detected"
  */
 
-// EI library generated for project 1000575 ("final")
+// EI library folder is "final_inferencing" (rgb96_mobilenetv1 model swapped in)
 #include <final_inferencing.h>
 
 #include <Arduino.h>
@@ -51,10 +56,11 @@
 
 #define INFER_INTERVAL_MS 200
 
-static uint8_t gray_buffer[EI_CLASSIFIER_INPUT_WIDTH * EI_CLASSIFIER_INPUT_HEIGHT];
+// Three bytes per pixel (R,G,B), interleaved.
+static uint8_t rgb_buffer[EI_CLASSIFIER_INPUT_WIDTH * EI_CLASSIFIER_INPUT_HEIGHT * 3];
 
-static void rgb565_to_gray_resize_crop(const uint8_t* src, int src_w, int src_h,
-                                       uint8_t* dst, int dst_w, int dst_h) {
+static void rgb565_to_rgb_resize_crop(const uint8_t* src, int src_w, int src_h,
+                                      uint8_t* dst, int dst_w, int dst_h) {
     int crop_w = src_h;
     int offset_x = (src_w - crop_w) / 2;
     for (int y = 0; y < dst_h; y++) {
@@ -73,15 +79,20 @@ static void rgb565_to_gray_resize_crop(const uint8_t* src, int src_w, int src_h,
             r = (r << 3) | (r >> 2);
             g = (g << 2) | (g >> 4);
             b = (b << 3) | (b >> 2);
-            dst[y * dst_w + x] = (uint8_t)((r * 77 + g * 150 + b * 29) >> 8);
+            int o = (y * dst_w + x) * 3;
+            dst[o]     = r;
+            dst[o + 1] = g;
+            dst[o + 2] = b;
         }
     }
 }
 
+// EI RGB image models pull one packed 0xRRGGBB float per pixel; offset/length
+// are in pixels, so index the interleaved RGB buffer 3 bytes at a time.
 static int ei_get_data_cb(size_t offset, size_t length, float* out_ptr) {
     for (size_t i = 0; i < length; i++) {
-        uint8_t v = gray_buffer[offset + i];
-        out_ptr[i] = (float)((v << 16) | (v << 8) | v);
+        const uint8_t* p = &rgb_buffer[(offset + i) * 3];
+        out_ptr[i] = (float)((p[0] << 16) | (p[1] << 8) | p[2]);
     }
     return 0;
 }
@@ -129,8 +140,8 @@ void setup() {
     }
     Serial.println("[OK] Camera QVGA RGB565");
 
-    if (EI_CLASSIFIER_INPUT_WIDTH != 48 || EI_CLASSIFIER_INPUT_HEIGHT != 48) {
-        Serial.printf("[WARN] Library expects %dx%d, sketch is tuned for 48x48\n",
+    if (EI_CLASSIFIER_INPUT_WIDTH != 96 || EI_CLASSIFIER_INPUT_HEIGHT != 96) {
+        Serial.printf("[WARN] Library expects %dx%d, sketch is tuned for 96x96\n",
                       EI_CLASSIFIER_INPUT_WIDTH, EI_CLASSIFIER_INPUT_HEIGHT);
     }
 
@@ -146,10 +157,10 @@ void loop() {
     if (!fb) return;
 
     uint32_t t_pre = millis();
-    rgb565_to_gray_resize_crop(fb->buf, fb->width, fb->height,
-                               gray_buffer,
-                               EI_CLASSIFIER_INPUT_WIDTH,
-                               EI_CLASSIFIER_INPUT_HEIGHT);
+    rgb565_to_rgb_resize_crop(fb->buf, fb->width, fb->height,
+                              rgb_buffer,
+                              EI_CLASSIFIER_INPUT_WIDTH,
+                              EI_CLASSIFIER_INPUT_HEIGHT);
     esp_camera_fb_return(fb);
     uint32_t pre_ms = millis() - t_pre;
 
