@@ -134,6 +134,16 @@ This document records project evolution in a professional, date-ordered format. 
 
 \textbf{New/updated tooling.} Added a repeatable training script, \texttt{tools/edge\_impulse/retrain\_rgb\_96\_mobilenetv1\_a2\_smart\_no\_espnn.py}, and kept diagnostic helpers under \texttt{tools/diag/} for ESP32 frame dumps and PC/device inference comparison. \texttt{models/MODEL\_VERSIONS.md} was updated to record the architecture, metrics, and deployment trade-offs for the new sketchboard model.
 
+\subsection{7--9 June 2026}
+\textbf{App-controlled pan head (two-board servo) and smoother live preview.} This session added remote camera-pan control driven from the mobile app, and fixed the live-stream stutter and brownout resets observed while panning the camera.
+
+\textbf{Servo pan path (app $\rightarrow$ main $\rightarrow$ helper).} A second ESP32-CAM acts as a dedicated \emph{helper} (camera disabled) that drives one servo as a pan head. The mobile app sends an absolute angle to the main board over HTTP (\texttt{GET /servo?angle=N} on port~80, handled in \texttt{camera\_web\_server.h}); the main forwards it to the helper over a one-wire UART link (main \texttt{GPIO15}~TX $\rightarrow$ helper \texttt{GPIO13}~RX, common ground) as \texttt{ANGLE:N}. The endpoint runs in the HTTP server task, so panning works even while a live preview is open. The legacy auto-detect path still notifies the helper (\texttt{HUMAN}) for a gentle alert sweep.
+
+\textbf{Smooth, low-latency motion.} The helper firmware (\texttt{firmware/helper\_servo/}) uses a \textbf{non-blocking} stepper that eases the servo toward a target angle ($\sim$2\textdegree{} every 8~ms) instead of a blocking sweep; incoming commands only update the target, so a new command takes effect immediately and the UART is never stalled. On the app side (\texttt{LiveMonitorScreen.js}) a dependency-free slider (React Native \texttt{PanResponder}) maps touches by absolute screen position (\texttt{pageX} relative to the measured track) rather than child-relative \texttt{locationX}, fixing a low-angle mis-read/glitch; a latest-wins sender streams the angle live while dragging without piling up requests, plus $\pm$15\textdegree{} nudge, center, and preset buttons.
+
+\textbf{Live-preview reliability.} The camera path was set to \texttt{CAMERA\_GRAB\_LATEST} with \texttt{CAMERA\_FB\_IN\_PSRAM} so the freshest frame is always served (no ``stuck'' frame when panning), and the WebSocket JPEG quality was lowered (40~$\rightarrow$~25) for smaller, more consistent frames over weak Wi-Fi. A brownout-detector disable (\texttt{RTC\_CNTL\_BROWN\_OUT\_REG}) was added as a band-aid against Wi-Fi current-spike resets during streaming, with the real fix noted as a proper 5~V supply and bulk capacitor.
+
+\textbf{Supporting assets.} Added a standalone dual-ESP32 UART test rig under \texttt{firmware/tests/dual\_esp\_uart\_test/} (helper + main-stub + README documenting the boot-safe AI-Thinker pin set and wiring), and \texttt{tools/setup\_mosquitto\_for\_eagleeye.ps1} to make the local Mosquitto broker reachable by the camera on the PC hotspot (listener on all interfaces, anonymous access, firewall rule) for end-to-end testing.
 
 %------------------------------------------------------------------
 \section{Suggested maintenance}

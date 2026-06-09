@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.29 (MiKTeX 26.2) (preloaded format=pdflatex 2026.2.24)  11 MAY 2026 19:12
+This is pdfTeX, Version 3.141592653-2.6-1.40.29 (MiKTeX 26.2) (preloaded format=pdflatex 2026.2.24)  9 JUN 2026 23:45
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -485,6 +485,12 @@ Package microtype Info: Loading generic protrusion settings for font family
 (microtype)             `lmtt' (encoding: T1).
 (microtype)             For optimal results, create family-specific settings.
 (microtype)             See the microtype manual for details.
+LaTeX Font Info:    External font `lmex10' loaded for size
+(Font)              <10> on input line 29.
+LaTeX Font Info:    External font `lmex10' loaded for size
+(Font)              <7> on input line 29.
+LaTeX Font Info:    External font `lmex10' loaded for size
+(Font)              <5> on input line 29.
 
 (EagleEye_Daily_Change_Report.toc
 LaTeX Font Info:    External font `lmex10' loaded for size
@@ -496,10 +502,12 @@ LaTeX Font Info:    External font `lmex10' loaded for size
  [1
 
 {C:/Users/Murtaza khalid/AppData/Local/MiKTeX/fonts/map/pdftex/pdftex.map}{C:/P
-rogram Files/MiKTeX/fonts/enc/dvips/lm/lm-ec.enc}]
+rogram Files/MiKTeX/fonts/enc/dvips/lm/lm-ec.enc}{C:/Program Files/MiKTeX/fonts
+/enc/dvips/lm/lm-mathsy.enc}]
 LaTeX Font Info:    Trying to load font information for TS1+lmr on input line 3
 9.
- (C:\Program Files\MiKTeX\tex/latex/lm\ts1lmr.fd
+
+(C:\Program Files\MiKTeX\tex/latex/lm\ts1lmr.fd
 File: ts1lmr.fd 2015/05/01 v1.6.1 Font defs for Latin Modern
 )
 Overfull \hbox (51.80399pt too wide) in paragraph at lines 57--59
@@ -511,8 +519,7 @@ lmtt/m/n/10.95 serviceAccountKey.json\T1/lmr/m/n/10.95 (-20) ).
 
 LaTeX Font Info:    Font shape `T1/lmtt/bx/n' in size <10.95> not available
 (Font)              Font shape `T1/lmtt/b/n' tried instead on input line 73.
-[2{C:/Program Files/MiKTeX/fonts/enc/dvips/lm/lm-ts1.enc}{C:/Program Files/MiKT
-eX/fonts/enc/dvips/lm/lm-mathsy.enc}]
+[2{C:/Program Files/MiKTeX/fonts/enc/dvips/lm/lm-ts1.enc}]
 Overfull \hbox (8.7472pt too wide) in paragraph at lines 85--87
 \T1/lmr/bx/n/10.95 (-20) Repository re-struc-ture (\T1/lmtt/b/n/10.95 179ef260\
 T1/lmr/bx/n/10.95 (-20) ). \T1/lmr/m/n/10.95 (-20) Con-sol-i-dated lay-out: \T1
@@ -552,39 +559,105 @@ Overfull \hbox (160.39594pt too wide) in paragraph at lines 98--99
 ols/hard_negative_capturer/\T1/lmr/m/n/10.95 (-20) )
  []
 
-[4] (EagleEye_Daily_Change_Report.aux)
+
+Overfull \hbox (77.19182pt too wide) in paragraph at lines 109--110
+\T1/lmtt/m/n/10.95 sketchboard/knowledge_distillation/train_teacher.py\T1/lmr/m
+/n/10.95 (-20) , \T1/lmtt/m/n/10.95 train_distillation.py\T1/lmr/m/n/10.95 (-20
+) , \T1/lmtt/m/n/10.95 train_kd_optuna.py\T1/lmr/m/n/10.95 (-20) ,
+ []
+
+
+Overfull \hbox (163.42282pt too wide) in paragraph at lines 109--110
+\T1/lmtt/m/n/10.95 evaluate_tflite.py\T1/lmr/m/n/10.95 (-20) , \T1/lmtt/m/n/10.
+95 sketchboard/train_optuna_cv.py\T1/lmr/m/n/10.95 (-20) , \T1/lmtt/m/n/10.95 s
+ketchboard/sketchboard_hard_negative_90plus_metrics.json\T1/lmr/m/n/10.95 (-20)
+ ,
+ []
+
+
+Overfull \hbox (354.46902pt too wide) in paragraph at lines 118--119
+[]\T1/lmr/bx/n/10.95 (-20) Changed files. \T1/lmr/m/n/10.95 (-20) Im-por-tant f
+iles in-clude \T1/lmtt/m/n/10.95 sketchboard/dataset/*20260517*.jpg\T1/lmr/m/n/
+10.95 (-20) , \T1/lmtt/m/n/10.95 sketchboard/firmware/hard_negative_capturer/ha
+rd_negative_capturer.ino\T1/lmr/m/n/10.95 (-20) ,
+ []
+
+
+Overfull \hbox (13.95575pt too wide) in paragraph at lines 118--119
+\T1/lmtt/m/n/10.95 collect_hard_negatives.py\T1/lmr/m/n/10.95 (-20) , \T1/lmtt/
+m/n/10.95 simple_server.py\T1/lmr/m/n/10.95 (-20) , \T1/lmtt/m/n/10.95 firmware
+/tools/hard_negative_capturer/\T1/lmr/m/n/10.95 (-20) ,
+ []
+
+
+Overfull \hbox (114.15161pt too wide) in paragraph at lines 118--119
+\T1/lmr/m/n/10.95 (-20) such as \T1/lmtt/m/n/10.95 model_v1.0_baseline.h\T1/lmr
+/m/n/10.95 (-20) , \T1/lmtt/m/n/10.95 model_v6.0_edge_impulse_final.h\T1/lmr/m/
+n/10.95 (-20) , and \T1/lmtt/m/n/10.95 model_v6.1_edge_impulse_grayscale.h\T1/l
+mr/m/n/10.95 (-20) . 
+ []
+
+[4]
+Overfull \hbox (30.73204pt too wide) in paragraph at lines 124--125
+[]\T1/lmr/bx/n/10.95 (-20) Documentation link. \T1/lmtt/m/n/10.95 README.md\T1/
+lmr/m/n/10.95 (-20) , \T1/lmtt/m/n/10.95 PROJECT_MANUAL_START.md\T1/lmr/m/n/10.
+95 (-20) , and \T1/lmtt/m/n/10.95 models/MODEL_VERSIONS.md
+ []
+
+
+Overfull \hbox (134.46976pt too wide) in paragraph at lines 133--134
+[]\T1/lmr/bx/n/10.95 (-20) Hard-negative cap-ture up-date. \T1/lmtt/m/n/10.95 s
+ketchboard/firmware/hard_negative_capturer/hard_negative_capturer.ino
+ []
+
+
+Overfull \hbox (230.68279pt too wide) in paragraph at lines 135--136
+[]\T1/lmr/bx/n/10.95 (-20) New/updated tool-ing. \T1/lmr/m/n/10.95 (-20) Added 
+a re-peat-able train-ing script, \T1/lmtt/m/n/10.95 tools/edge_impulse/retrain_
+rgb_96_mobilenetv1_a2_smart_no_espnn.py\T1/lmr/m/n/10.95 (-20) ,
+ []
+
+[5]
+Overfull \hbox (54.73532pt too wide) in paragraph at lines 144--145
+[]\T1/lmr/bx/n/10.95 (-20) Live-preview re-li-a-bil-ity. \T1/lmr/m/n/10.95 (-20
+) The cam-era path was set to \T1/lmtt/m/n/10.95 CAMERA_GRAB_LATEST \T1/lmr/m/n
+/10.95 (-20) with \T1/lmtt/m/n/10.95 CAMERA_FB_IN_PSRAM
+ []
+
+
+Overfull \hbox (108.46413pt too wide) in paragraph at lines 146--147
+[]\T1/lmr/bx/n/10.95 (-20) Supporting as-sets. \T1/lmr/m/n/10.95 (-20) Added a 
+stan-dalone dual-ESP32 UART test rig un-der \T1/lmtt/m/n/10.95 firmware/tests/d
+ual_esp_uart_test/
+ []
+
+[6] (EagleEye_Daily_Change_Report.aux)
  ***********
 LaTeX2e <2025-11-01>
 L3 programming layer <2026-01-19>
  ***********
-
-
-Package rerunfilecheck Warning: File `EagleEye_Daily_Change_Report.out' has cha
-nged.
-(rerunfilecheck)                Rerun to get outlines right
-(rerunfilecheck)                or use package `bookmark'.
-
-Package rerunfilecheck Info: Checksums for `EagleEye_Daily_Change_Report.out':
-(rerunfilecheck)             Before: 4563366D0F70A60CA5DE0D7464C424E6;2990
-(rerunfilecheck)             After:  11BFB1C33E90A68EACDCCAD7D1EDB188;3371.
+Package rerunfilecheck Info: File `EagleEye_Daily_Change_Report.out' has not ch
+anged.
+(rerunfilecheck)             Checksum: 373E046C632D12E5E96C9CAE6CD9B180;3992.
  ) 
 Here is how much of TeX's memory you used:
- 12377 strings out of 467867
- 195230 string characters out of 5428372
- 662646 words of memory out of 5000000
- 40965 multiletter control sequences out of 15000+600000
- 680618 words of font info for 131 fonts, out of 8000000 for 9000
+ 12481 strings out of 467867
+ 196589 string characters out of 5428372
+ 666715 words of memory out of 5000000
+ 41000 multiletter control sequences out of 15000+600000
+ 698081 words of font info for 169 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
  75i,6n,79p,1027b,454s stack positions out of 10000i,1000n,20000p,200000b,200000s
 <C:/Program Files/MiKTeX/fonts/type1/public/lm/lmbx10.pfb><C:/Program Files/M
 iKTeX/fonts/type1/public/lm/lmbx12.pfb><C:/Program Files/MiKTeX/fonts/type1/pub
 lic/lm/lmr10.pfb><C:/Program Files/MiKTeX/fonts/type1/public/lm/lmr12.pfb><C:/P
-rogram Files/MiKTeX/fonts/type1/public/lm/lmsy10.pfb><C:/Program Files/MiKTeX/f
-onts/type1/public/lm/lmtk10.pfb><C:/Program Files/MiKTeX/fonts/type1/public/lm/
-lmtt10.pfb><C:/Program Files/MiKTeX/fonts/type1/public/lm/lmtt12.pfb>
-Output written on EagleEye_Daily_Change_Report.pdf (4 pages, 237762 bytes).
+rogram Files/MiKTeX/fonts/type1/public/lm/lmri10.pfb><C:/Program Files/MiKTeX/f
+onts/type1/public/lm/lmsy10.pfb><C:/Program Files/MiKTeX/fonts/type1/public/lm/
+lmtk10.pfb><C:/Program Files/MiKTeX/fonts/type1/public/lm/lmtt10.pfb><C:/Progra
+m Files/MiKTeX/fonts/type1/public/lm/lmtt12.pfb>
+Output written on EagleEye_Daily_Change_Report.pdf (6 pages, 268578 bytes).
 PDF statistics:
- 183 PDF objects out of 1000 (max. 8388607)
- 29 named destinations out of 1000 (max. 500000)
- 33441 words of extra memory for PDF output out of 35830 (max. 10000000)
+ 229 PDF objects out of 1000 (max. 8388607)
+ 35 named destinations out of 1000 (max. 500000)
+ 41689 words of extra memory for PDF output out of 42996 (max. 10000000)
 
