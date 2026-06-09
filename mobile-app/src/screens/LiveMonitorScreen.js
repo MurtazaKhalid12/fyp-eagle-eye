@@ -10,6 +10,7 @@ import {
     Platform,
     Linking,
     Alert,
+    PanResponder,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -38,9 +39,87 @@ export default function LiveMonitorScreen() {
     const [frameDataUri, setFrameDataUri] = useState(null);
     const streamingRef = useRef(false);
 
+    // --- Servo pan control (camera head). Sends GET http://<ip>/servo?angle=N ---
+    const [servoAngle, setServoAngle] = useState(90);
+    const [servoBusy, setServoBusy] = useState(false);
+
     useEffect(() => {
         streamingRef.current = isStreaming;
     }, [isStreaming]);
+
+    // Keep the latest IP in a ref so the once-created PanResponder never goes stale.
+    const ipRef = useRef('');
+    useEffect(() => { ipRef.current = ipAddress; }, [ipAddress]);
+
+    // Measure the slider track in WINDOW space. We map touches with pageX (absolute),
+    // not nativeEvent.locationX — locationX is relative to whatever child the finger
+    // lands on, which is what made the low-angle end misread / glitch.
+    const trackRef = useRef(null);
+    const trackLayout = useRef({ x: 0, width: 0 });
+    const measureTrack = () => {
+        trackRef.current?.measureInWindow((x, y, w) => {
+            if (w > 0) trackLayout.current = { x, width: w };
+        });
+    };
+    const angleFromPageX = (pageX) => {
+        const { x, width } = trackLayout.current;
+        if (!width) return servoAngle;
+        const rel = Math.max(0, Math.min(width, pageX - x));
+        return Math.round((rel / width) * 180);
+    };
+
+    // Latest-wins sender: while dragging we keep only the newest angle in `pending`
+    // and never let requests pile up — so the head follows the finger with low delay
+    // and always settles on the final angle.
+    const inFlightRef = useRef(false);
+    const pendingRef = useRef(null);
+    const flushServo = async () => {
+        if (inFlightRef.current || pendingRef.current == null) return;
+        const ip = ipRef.current.trim();
+        if (!IPV4_RE.test(ip)) {
+            pendingRef.current = null;
+            setStreamError('Enter the camera IP first (same field as live view).');
+            return;
+        }
+        inFlightRef.current = true;
+        const a = pendingRef.current;
+        pendingRef.current = null;
+        setServoBusy(true);
+        try {
+            const ctrl = new AbortController();
+            const t = setTimeout(() => ctrl.abort(), 2000);
+            await fetch(`http://${ip}/servo?angle=${a}`, { signal: ctrl.signal });
+            clearTimeout(t);
+            setStreamError(null);
+        } catch {
+            setStreamError('Servo command failed (camera offline or wrong IP).');
+        } finally {
+            inFlightRef.current = false;
+            setServoBusy(false);
+            if (pendingRef.current != null) flushServo();   // send the newest queued angle
+        }
+    };
+    const queueServo = (angle) => {
+        const a = Math.max(0, Math.min(180, Math.round(angle)));
+        setServoAngle(a);
+        pendingRef.current = a;
+        flushServo();
+    };
+
+    // Stable drag handler ref so the once-created PanResponder calls the latest closure.
+    const onDragRef = useRef(() => {});
+    onDragRef.current = (pageX) => queueServo(angleFromPageX(pageX));
+
+    const panResponder = useRef(
+        PanResponder.create({
+            onStartShouldSetPanResponder: () => true,
+            onMoveShouldSetPanResponder: () => true,
+            onPanResponderGrant: (e) => { measureTrack(); onDragRef.current(e.nativeEvent.pageX); },
+            onPanResponderMove: (e) => onDragRef.current(e.nativeEvent.pageX),
+            onPanResponderRelease: (e) => onDragRef.current(e.nativeEvent.pageX),
+            onPanResponderTerminate: (e) => onDragRef.current(e.nativeEvent.pageX),
+        }),
+    ).current;
 
     useEffect(() => {
         if (!isStreaming) {
@@ -229,6 +308,83 @@ export default function LiveMonitorScreen() {
                         <Text style={styles.buttonTextSecondary}>Open MJPEG stream in browser</Text>
                     </TouchableOpacity>
                 </View>
+
+                {/* ---- Camera pan (servo) control ---- */}
+                <View style={styles.controlsCard}>
+                    <View style={styles.servoHeaderRow}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                            <Ionicons name="sync-outline" size={20} color="#424242" />
+                            <Text style={[styles.inputLabel, { marginBottom: 0, marginLeft: 8 }]}>
+                                Camera Pan (Servo)
+                            </Text>
+                        </View>
+                        <Text style={styles.servoAngleValue}>{servoAngle}°</Text>
+                    </View>
+
+                    {/* draggable slider 0–180 */}
+                    <View
+                        ref={trackRef}
+                        style={styles.sliderTrack}
+                        onLayout={measureTrack}
+                        {...panResponder.panHandlers}
+                    >
+                        <View pointerEvents="none" style={[styles.sliderFill, { width: `${(servoAngle / 180) * 100}%` }]} />
+                        <View pointerEvents="none" style={[styles.sliderThumb, { left: `${(servoAngle / 180) * 100}%` }]} />
+                    </View>
+                    <View style={styles.sliderScaleRow}>
+                        <Text style={styles.sliderScaleText}>0°</Text>
+                        <Text style={styles.sliderScaleText}>90°</Text>
+                        <Text style={styles.sliderScaleText}>180°</Text>
+                    </View>
+
+                    {/* nudge + center */}
+                    <View style={styles.servoButtonRow}>
+                        <TouchableOpacity
+                            style={styles.servoNudgeBtn}
+                            onPress={() => queueServo(servoAngle - 15)}
+                            activeOpacity={0.8}
+                        >
+                            <Ionicons name="chevron-back" size={18} color="#1976D2" />
+                            <Text style={styles.servoNudgeText}>15°</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={styles.servoCenterBtn}
+                            onPress={() => queueServo(90)}
+                            activeOpacity={0.8}
+                        >
+                            <Ionicons name="locate" size={18} color="#FFF" />
+                            <Text style={styles.servoCenterText}>Center</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={styles.servoNudgeBtn}
+                            onPress={() => queueServo(servoAngle + 15)}
+                            activeOpacity={0.8}
+                        >
+                            <Text style={styles.servoNudgeText}>15°</Text>
+                            <Ionicons name="chevron-forward" size={18} color="#1976D2" />
+                        </TouchableOpacity>
+                    </View>
+
+                    {/* presets */}
+                    <View style={styles.servoPresetRow}>
+                        {[0, 45, 90, 135, 180].map((a) => (
+                            <TouchableOpacity
+                                key={a}
+                                style={[styles.servoPresetBtn, servoAngle === a && styles.servoPresetActive]}
+                                onPress={() => queueServo(a)}
+                                activeOpacity={0.8}
+                            >
+                                <Text style={[styles.servoPresetText, servoAngle === a && styles.servoPresetTextActive]}>
+                                    {a}°
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+
+                    <Text style={styles.hintText}>
+                        {servoBusy ? 'Sending…' : 'Drag the slider, tap a preset, or nudge ±15°. The head pans smoothly to the chosen angle.'}
+                    </Text>
+                </View>
             </KeyboardAvoidingView>
         </SafeAreaView>
     );
@@ -406,5 +562,116 @@ const styles = StyleSheet.create({
         fontSize: 16,
         fontWeight: '600',
         marginLeft: 8,
+    },
+    // ---- servo pan control ----
+    servoHeaderRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 16,
+    },
+    servoAngleValue: {
+        fontSize: 20,
+        fontWeight: '800',
+        color: '#2196F3',
+    },
+    sliderTrack: {
+        height: 36,
+        backgroundColor: '#E0E0E0',
+        borderRadius: 18,
+        justifyContent: 'center',
+        marginBottom: 6,
+    },
+    sliderFill: {
+        position: 'absolute',
+        left: 0,
+        top: 0,
+        bottom: 0,
+        backgroundColor: '#BBDEFB',
+        borderRadius: 18,
+    },
+    sliderThumb: {
+        position: 'absolute',
+        width: 26,
+        height: 26,
+        borderRadius: 13,
+        backgroundColor: '#2196F3',
+        marginLeft: -13,
+        borderWidth: 3,
+        borderColor: '#FFF',
+        elevation: 3,
+    },
+    sliderScaleRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginBottom: 14,
+    },
+    sliderScaleText: {
+        fontSize: 11,
+        color: '#9E9E9E',
+        fontWeight: '600',
+    },
+    servoButtonRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 12,
+    },
+    servoNudgeBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#E3F2FD',
+        borderRadius: 12,
+        paddingVertical: 12,
+        flex: 1,
+    },
+    servoNudgeText: {
+        color: '#1976D2',
+        fontSize: 15,
+        fontWeight: '700',
+    },
+    servoCenterBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#2196F3',
+        borderRadius: 12,
+        paddingVertical: 12,
+        flex: 1.2,
+        marginHorizontal: 10,
+    },
+    servoCenterText: {
+        color: '#FFF',
+        fontSize: 15,
+        fontWeight: '700',
+        marginLeft: 6,
+    },
+    servoPresetRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginBottom: 14,
+    },
+    servoPresetBtn: {
+        flex: 1,
+        paddingVertical: 10,
+        marginHorizontal: 3,
+        borderRadius: 10,
+        backgroundColor: '#F5F5F5',
+        borderWidth: 1,
+        borderColor: '#E0E0E0',
+        alignItems: 'center',
+    },
+    servoPresetActive: {
+        backgroundColor: '#2196F3',
+        borderColor: '#2196F3',
+    },
+    servoPresetText: {
+        fontSize: 13,
+        fontWeight: '700',
+        color: '#616161',
+    },
+    servoPresetTextActive: {
+        color: '#FFF',
     },
 });

@@ -15,6 +15,10 @@ static const char* _STREAM_PART = "Content-Type: image/jpeg\r\nContent-Length: %
 
 extern bool is_streaming;
 
+// Defined in the main sketch (after the HELPER UART is set up). Forwards a target
+// servo angle (0..180) to the helper board over UART. Lets the app pan the head.
+extern void eagleeye_send_servo(int angle);
+
 httpd_handle_t stream_httpd = NULL;
 
 static esp_err_t stream_handler(httpd_req_t *req){
@@ -105,7 +109,9 @@ inline bool eagleeye_grab_jpeg(uint8_t **jpg_buf, size_t *jpg_len) {
   if (fb->format != PIXFORMAT_JPEG) {
     uint8_t *buf = NULL;
     size_t len = 0;
-    bool ok = frame2jpg(fb, 40, &buf, &len);
+    // lower quality -> smaller, more consistent frames -> smoother over weak Wi-Fi,
+    // esp. when panning (detail-heavy scene). Raise back toward 40 on a strong link.
+    bool ok = frame2jpg(fb, 25, &buf, &len);
     esp_camera_fb_return(fb);
     if (!ok || !buf) {
       return false;
@@ -149,6 +155,29 @@ static esp_err_t capture_handler(httpd_req_t *req) {
   return res;
 }
 
+// GET /servo?angle=N  -> pan the helper servo smoothly to angle N (0..180).
+// Runs in the HTTP server task, so it works even while a live preview is open.
+static esp_err_t servo_handler(httpd_req_t *req) {
+  int angle = 90;
+  char query[48];
+  if (httpd_req_get_url_query_str(req, query, sizeof(query)) == ESP_OK) {
+    char val[8];
+    if (httpd_query_key_value(query, "angle", val, sizeof(val)) == ESP_OK) {
+      angle = atoi(val);
+    }
+  }
+  if (angle < 0)   angle = 0;
+  if (angle > 180) angle = 180;
+
+  eagleeye_send_servo(angle);
+
+  httpd_resp_set_type(req, "text/plain");
+  httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");   // allow browser calls too
+  char msg[24];
+  int n = snprintf(msg, sizeof(msg), "OK angle=%d", angle);
+  return httpd_resp_send(req, msg, n);
+}
+
 void startCameraServer(){
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
   config.server_port = 80;
@@ -167,11 +196,19 @@ void startCameraServer(){
     .user_ctx  = NULL
   };
 
+  httpd_uri_t servo_uri = {
+    .uri       = "/servo",
+    .method    = HTTP_GET,
+    .handler   = servo_handler,
+    .user_ctx  = NULL
+  };
+
   Serial.printf("Starting web server on port: '%d'\n", config.server_port);
   if (httpd_start(&stream_httpd, &config) == ESP_OK) {
     httpd_register_uri_handler(stream_httpd, &stream_uri);
     httpd_register_uri_handler(stream_httpd, &capture_uri);
-    Serial.println("HTTP: GET /  (MJPEG), GET /capture (single JPEG)");
+    httpd_register_uri_handler(stream_httpd, &servo_uri);
+    Serial.println("HTTP: GET /  (MJPEG), GET /capture (JPEG), GET /servo?angle=N");
   }
 }
 

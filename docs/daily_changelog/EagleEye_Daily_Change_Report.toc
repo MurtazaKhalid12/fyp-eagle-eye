@@ -19,5 +19,9 @@
 \contentsline {subsection}{\numberline {2.17}8--9 May 2026}{4}{subsection.2.17}%
 \contentsline {subsection}{\numberline {2.18}9--10 May 2026}{4}{subsection.2.18}%
 \contentsline {subsection}{\numberline {2.19}11 May 2026}{4}{subsection.2.19}%
-\contentsline {section}{\numberline {3}Suggested maintenance}{4}{section.3}%
-\contentsline {section}{\numberline {4}Compilation}{4}{section.4}%
+\contentsline {subsection}{\numberline {2.20}16 May 2026 (\texttt {60b59617})}{4}{subsection.2.20}%
+\contentsline {subsection}{\numberline {2.21}17 May 2026 (\texttt {a07039ba})}{4}{subsection.2.21}%
+\contentsline {subsection}{\numberline {2.22}19 May 2026}{5}{subsection.2.22}%
+\contentsline {subsection}{\numberline {2.23}7--9 June 2026}{6}{subsection.2.23}%
+\contentsline {section}{\numberline {3}Suggested maintenance}{6}{section.3}%
+\contentsline {section}{\numberline {4}Compilation}{6}{section.4}%

@@ -9,6 +9,8 @@
 #include "esp_sleep.h"
 #include "SD_MMC.h"
 #include "driver/gpio.h"
+#include "soc/soc.h"            // for the brownout-detector register
+#include "soc/rtc_cntl_reg.h"
 
 // --- GLOBAL STATE ---
 bool is_streaming = false;
@@ -81,6 +83,20 @@ static int ei_get_data_cb(size_t offset, size_t length, float *out_ptr) {
     return 0;
 }
 
+// --- UART link to the HELPER board (servo controller). TX only: GPIO15 -> helper RX(GPIO13). ---
+#define HELPER_TX_PIN 15
+HardwareSerial HelperSerial(2);       // UART2
+
+// Forward a target servo angle (0..180) to the helper board. The helper does the
+// SMOOTH interpolation (1 deg / step) so panning looks clean. Called by the
+// /servo HTTP handler (camera_web_server.h) when the app sends a pan command.
+void eagleeye_send_servo(int angle) {
+  if (angle < 0)   angle = 0;
+  if (angle > 180) angle = 180;
+  HelperSerial.printf("ANGLE:%d\n", angle);
+  Serial.printf(">>> servo -> %d deg (sent to helper)\n", angle);
+}
+
 // --- STATE ---
 unsigned long wake_time = 0;          // millis() when we woke up
 unsigned long scan_deadline = 0;      // When to stop scanning and sleep
@@ -117,6 +133,8 @@ void setup_camera_ai() {
   config.frame_size = FRAMESIZE_QVGA;    // 320x240
   config.jpeg_quality = 12;
   config.fb_count = 2;                    // Double buffer in PSRAM
+  config.fb_location = CAMERA_FB_IN_PSRAM;
+  config.grab_mode = CAMERA_GRAB_LATEST;  // always serve the freshest frame -> no "stuck/stale" frame when panning
 
   if (esp_camera_init(&config) != ESP_OK) {
     Serial.println("[ERROR] Camera Init Failed!");
@@ -192,7 +210,12 @@ void enter_deep_sleep() {
 void setup() {
   delay(500);
   Serial.begin(115200);
-  
+
+  // Mitigate ESP32-CAM brownout RESETS during Wi-Fi current spikes (e.g. live stream).
+  // BAND-AID ONLY — if power is truly weak this masks resets but can cause glitches.
+  // Fix the 5V supply for real reliability (see notes).
+  WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0);
+
   // Record wake time
   wake_time = millis();
 
@@ -231,6 +254,10 @@ void setup() {
 
   // --- Initialize Camera ---
   setup_camera_ai();
+
+  // --- UART to helper (servo) : TX only on GPIO15 ---
+  HelperSerial.begin(9600, SERIAL_8N1, -1, HELPER_TX_PIN);
+  Serial.println("[OK] Helper UART up (TX GPIO15 @9600)");
 
   Serial.println("\n--- MODEL DETAILS (from EI library) ---");
   Serial.printf("Project: %s (deploy v%d)\n", EI_CLASSIFIER_PROJECT_NAME, EI_CLASSIFIER_PROJECT_DEPLOY_VERSION);
@@ -343,6 +370,8 @@ void loop() {
       Serial.println("========================================");
 
       capture_and_send_image(NULL, 0, 0);
+      HelperSerial.println("HUMAN");      // tell helper board to randomly rotate the servo
+      Serial.println(">>> sent HUMAN to helper (servo)");
       image_sent_this_event = true;
       human_confirmed = true;
     }
