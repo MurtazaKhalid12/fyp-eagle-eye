@@ -1,0 +1,16 @@
+{
+  "name": "eagleeye-relay",
+  "version": "1.0.0",
+  "description": "EagleEye live-video relay (cloud meeting room for camera <-> phone)",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}
