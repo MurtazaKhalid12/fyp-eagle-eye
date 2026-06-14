@@ -83,7 +83,8 @@ static int ei_get_data_cb(size_t offset, size_t length, float *out_ptr) {
     return 0;
 }
 
-// --- UART link to the HELPER board (servo controller). TX only: GPIO15 -> helper RX(GPIO13). ---
+// --- UART link to the HELPER board (servo/sensor). Bidirectional: RX=14, TX=15 ---
+#define HELPER_RX_PIN 14
 #define HELPER_TX_PIN 15
 HardwareSerial HelperSerial(2);       // UART2
 
@@ -181,7 +182,7 @@ void enter_deep_sleep() {
     Serial.println("   ENTERING DEEP SLEEP");
     Serial.printf("   Awake for: %lu seconds\n", (millis() - wake_time) / 1000);
     Serial.printf("   Frames processed: %lu\n", frame_count);
-    Serial.println("   Waiting for PIR trigger on GPIO 14...");
+    Serial.println("   Waiting for Helper UART wake-on-LOW on GPIO 14...");
     Serial.println("========================================\n");
     
     // Disconnect WiFi & MQTT cleanly
@@ -192,8 +193,11 @@ void enter_deep_sleep() {
     // Deinit camera to prevent power drain
     esp_camera_deinit();
     
-    // Configure wake-up source: PIR on GPIO 14 going HIGH
-    esp_sleep_enable_ext0_wakeup(PIR_PIN, 1);  // 1 = wake on HIGH
+    // Configure wake-up source: Helper UART TX on GPIO 14 going LOW
+    #include "driver/rtc_io.h"
+    rtc_gpio_pullup_en(GPIO_NUM_14);          // idle-high so we don't false-wake
+    rtc_gpio_pulldown_dis(GPIO_NUM_14);
+    esp_sleep_enable_ext0_wakeup(GPIO_NUM_14, 0);   // 0 = wake on LOW
     
     // Small delay so serial messages flush
     delay(100);
@@ -255,9 +259,28 @@ void setup() {
   // --- Initialize Camera ---
   setup_camera_ai();
 
-  // --- UART to helper (servo) : TX only on GPIO15 ---
-  HelperSerial.begin(9600, SERIAL_8N1, -1, HELPER_TX_PIN);
-  Serial.println("[OK] Helper UART up (TX GPIO15 @9600)");
+  // --- UART to helper (servo/sensor) : Bidirectional ---
+  HelperSerial.begin(9600, SERIAL_8N1, HELPER_RX_PIN, HELPER_TX_PIN);
+  Serial.println("[OK] Helper UART up (RX GPIO14, TX GPIO15 @9600)");
+
+  // Check wake cause and handshake
+  esp_sleep_wakeup_cause_t cause = esp_sleep_get_wakeup_cause();
+  if (cause == ESP_SLEEP_WAKEUP_EXT0) {
+    Serial.println("[MAIN] Woken up by helper board! Performing handshake...");
+    HelperSerial.println("READY");
+    String evt = "";
+    unsigned long t0 = millis();
+    while (millis() - t0 < 2000) {
+      if (HelperSerial.available()) {
+        evt = HelperSerial.readStringUntil('\n');
+        evt.trim();
+        break;
+      }
+    }
+    Serial.printf("[MAIN] Wakeup handshake event: %s\n", evt.c_str());
+  } else {
+    Serial.println("[MAIN] Woken up by power-on/reset.");
+  }
 
   Serial.println("\n--- MODEL DETAILS (from EI library) ---");
   Serial.printf("Project: %s (deploy v%d)\n", EI_CLASSIFIER_PROJECT_NAME, EI_CLASSIFIER_PROJECT_DEPLOY_VERSION);
@@ -291,6 +314,32 @@ static void reset_intrusion_latch_after_preview(const char* reason) {
 void loop() {
   // 1. Maintain MQTT Connection
   update_mqtt();
+
+  // Handle incoming UART WAKE / triggers from Helper in stay-awake mode
+  if (HelperSerial.available()) {
+    String line = HelperSerial.readStringUntil('\n');
+    line.trim();
+    if (line == "WAKE" || line.startsWith("EVENT:")) {
+      Serial.printf("[MAIN] Helper UART notification: %s\n", line.c_str());
+      if (line == "WAKE") {
+        HelperSerial.println("READY");
+        String evt = "";
+        unsigned long t0 = millis();
+        while (millis() - t0 < 2000) {
+          if (HelperSerial.available()) {
+            evt = HelperSerial.readStringUntil('\n');
+            evt.trim();
+            break;
+          }
+        }
+        Serial.printf("[MAIN] Handshake event: %s\n", evt.c_str());
+      }
+      // Reset the intrusion latch so that we start scanning and can send a new image
+      image_sent_this_event = false;
+      human_confirmed = false;
+      clear_scene_count = 0;
+    }
+  }
 
   // 2. WebSocket live preview (app) — binary JPEG frames
   static bool prev_ws_clients = false;
@@ -374,6 +423,18 @@ void loop() {
       Serial.println(">>> sent HUMAN to helper (servo)");
       image_sent_this_event = true;
       human_confirmed = true;
+
+      // Wait for Helper to reply "DONE"
+      String r = "";
+      unsigned long t1 = millis();
+      while (millis() - t1 < 5000) {
+        if (HelperSerial.available()) {
+          r = HelperSerial.readStringUntil('\n');
+          r.trim();
+          break;
+        }
+      }
+      Serial.printf("[MAIN] Helper replied: '%s'\n", r.c_str());
     }
   } else {
     // No human in this frame

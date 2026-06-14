@@ -34,6 +34,7 @@
 #define PIN_LINK_RX    13    // <- MAIN GPIO15 (TX)
 #define PIN_LINK_TX    2     // -> MAIN (optional reply; unused by main)
 #define PIN_CAM_PWDN   32    // camera power-down (HIGH = off)
+#define PIN_PIR        14    // PIR OUT connected to GPIO 14 (safe when camera off)
 #define LINK_BAUD      9600
 
 // ---------- MOTION TUNING ----------
@@ -48,6 +49,18 @@ Servo servo;
 int currentAngle = 90;       // where the head physically is right now
 int targetAngle  = 90;       // where we're easing toward
 unsigned long lastStepMs = 0;
+bool pendingEvent = false;
+
+void wakeMain() {
+  Link.println("WAKE");       // pulls Main's RX line LOW -> ext0 wake
+  delay(600);                 // let Main boot + start its UART
+}
+
+void triggerEvent(const char* why) {
+  pendingEvent = true;
+  Serial.printf("[HELPER] %s -> waking MAIN\n", why);
+  wakeMain();
+}
 
 // Tiny waypoint queue — only used for the multi-stop HUMAN alert sweep.
 #define QMAX 8
@@ -113,6 +126,8 @@ void setup() {
   WiFi.mode(WIFI_OFF);
   disableCamera();
 
+  pinMode(PIN_PIR, INPUT); // Initialize PIR sensor pin
+
   ESP32PWM::allocateTimer(0);
   servo.setPeriodHertz(50);
   servo.attach(PIN_SERVO, 500, 2400);        // SG90-style
@@ -120,18 +135,34 @@ void setup() {
 
   Link.begin(LINK_BAUD, SERIAL_8N1, PIN_LINK_RX, PIN_LINK_TX);
   Link.setTimeout(20);                        // don't let a partial line stall the stepper
-  Serial.println("[HELPER] ready.  (monitor: a=left d=right c=center p=sweep)");
+  Serial.println("[HELPER] ready.  (monitor: a=left d=right c=center p=sweep t=manual_wake)");
 }
 
 void loop() {
   serviceServo();                             // non-blocking smooth motion (runs constantly)
 
+  // Read PIR sensor on GPIO 14
+  static int lastPirState = LOW;
+  int pirState = digitalRead(PIN_PIR);
+  if (pirState == HIGH && lastPirState == LOW) {
+    if (!pendingEvent) {
+      triggerEvent("PIR");
+    }
+  }
+  lastPirState = pirState;
+
   // command from MAIN (forwarded from the app)
   if (Link.available()) {
     String m = Link.readStringUntil('\n'); m.trim();
     if (m.length()) {
-      Serial.printf("[HELPER] <- %s\n", m.c_str());
-      handleCommand(m);
+      Serial.printf("[HELPER] <- MAIN: %s\n", m.c_str());
+      if (m == "READY" && pendingEvent) {
+        Link.println("EVENT:PIR");
+        pendingEvent = false;
+        Serial.println("[HELPER] -> EVENT:PIR sent");
+      } else {
+        handleCommand(m);
+      }
     }
   }
 
@@ -142,5 +173,6 @@ void loop() {
     else if (c == 'd' || c == 'D') setTarget(targetAngle + NUDGE_STEP);
     else if (c == 'c' || c == 'C') setTarget(90);
     else if (c == 'p' || c == 'P') alertSweep();
+    else if (c == 't' || c == 'T') triggerEvent("MANUAL");
   }
 }
