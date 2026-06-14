@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -9,10 +10,13 @@ import GalleryScreen from './src/screens/GalleryScreen';
 import DashboardScreen from './src/screens/DashboardScreen';
 import IntrusionStatsScreen from './src/screens/IntrusionStatsScreen';
 import LiveMonitorScreen from './src/screens/LiveMonitorScreen';
+import { connectMqtt } from './src/services/mqttClient';
 
 const Tab = createBottomTabNavigator();
 
 export default function App() {
+    useEffect(() => { connectMqtt(); }, []);   // one shared cloud connection
+
     return (
         <SafeAreaProvider>
             <NavigationContainer>

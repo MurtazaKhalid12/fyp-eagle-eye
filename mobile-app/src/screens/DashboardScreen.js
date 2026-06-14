@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Switch, TouchableOpacity, ScrollView, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { ref, onValue, set, query, orderByChild, limitToLast } from 'firebase/database';
+import { ref, onValue, query, orderByChild, limitToLast } from 'firebase/database';
 import { database } from '../config/firebaseConfig';
+import { connectMqtt, onStatus, setArmed } from '../services/mqttClient';
 
 export default function DashboardScreen({ navigation }) {
     const [isArmed, setIsArmed] = useState(true);
@@ -12,21 +13,14 @@ export default function DashboardScreen({ navigation }) {
     const [lastHeartbeat, setLastHeartbeat] = useState(0);
 
     useEffect(() => {
-        // 1. Listen for System Arm Status
-        const armRef = ref(database, 'config/armed');
-        const unsubArm = onValue(armRef, (snapshot) => {
-            setIsArmed(snapshot.exists() ? snapshot.val() : true);
+        connectMqtt();
+        // Armed + online come from the camera's retained MQTT status (+ LWT).
+        const offStatus = onStatus((s) => {
+            if (s && typeof s.online !== 'undefined') setSystemStatus(s.online ? 'ONLINE' : 'OFFLINE');
+            if (s && typeof s.armed !== 'undefined') setIsArmed(!!s.armed);
         });
 
-        // 2. Listen for System Heartbeat
-        const statusRef = ref(database, 'status/heartbeat');
-        const unsubStatus = onValue(statusRef, (snapshot) => {
-            if (snapshot.exists()) {
-                setLastHeartbeat(snapshot.val());
-            }
-        });
-
-        // 3. Get Latest Alert
+        // Latest-alert preview still comes from Firebase history.
         const alertsRef = ref(database, 'alerts');
         const latestQuery = query(alertsRef, orderByChild('timestamp'), limitToLast(1));
         const unsubAlert = onValue(latestQuery, (snapshot) => {
@@ -39,35 +33,13 @@ export default function DashboardScreen({ navigation }) {
             }
         });
 
-        return () => {
-            unsubArm();
-            unsubStatus();
-            unsubAlert();
-        };
+        return () => { offStatus(); unsubAlert(); };
     }, []);
-
-    // Check online status periodically
-    useEffect(() => {
-        const checkStatus = () => {
-            const now = Date.now() / 1000;
-            // Threshold = 20s (15s heartbeat interval + 5s buffer)
-            if (lastHeartbeat > 0 && (now - lastHeartbeat < 20)) {
-                setSystemStatus('ONLINE');
-            } else {
-                setSystemStatus('OFFLINE');
-            }
-        };
-
-        const interval = setInterval(checkStatus, 2000); // Check every 2 seconds
-        checkStatus(); // Initial check
-
-        return () => clearInterval(interval);
-    }, [lastHeartbeat]);
 
     const toggleArm = () => {
         const newValue = !isArmed;
-        set(ref(database, 'config/armed'), newValue);
-        setIsArmed(newValue);
+        setIsArmed(newValue);          // optimistic; status will confirm
+        setArmed(newValue);            // publish over MQTT
     };
 
     return (

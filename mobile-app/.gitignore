@@ -33,6 +33,9 @@ yarn-error.*
 # local env files
 .env*.local
 
+# EagleEye cloud credentials (use cloudConfig.example.js as the template)
+src/config/cloudConfig.js
+
 # typescript
 *.tsbuildinfo
 

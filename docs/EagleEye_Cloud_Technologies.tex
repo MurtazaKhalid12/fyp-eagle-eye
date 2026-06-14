@@ -1,0 +1,463 @@
+\documentclass[11pt,a4paper]{article}
+
+% ======================================================================
+%  EagleEye — Cloud Architecture & Technology Stack (Technical Report)
+% ======================================================================
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage[a4paper,margin=2.3cm,headheight=15pt]{geometry}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{longtable}
+\usepackage{enumitem}
+\usepackage{listings}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{parskip}
+\usepackage[hidelinks]{hyperref}
+
+% ---- palette ----
+\definecolor{eagleblue}{HTML}{1F4E79}
+\definecolor{eagleteal}{HTML}{2196F3}
+\definecolor{eaglegray}{HTML}{555555}
+\definecolor{codebg}{HTML}{F4F6F8}
+\definecolor{rulegray}{HTML}{D0D5DB}
+\definecolor{freegreen}{HTML}{2E7D32}
+\definecolor{paidorange}{HTML}{E65100}
+
+\hypersetup{pdftitle={EagleEye Cloud Architecture and Technology Stack},
+  pdfauthor={EagleEye FYP}, colorlinks=true, linkcolor=eagleblue, urlcolor=eagleteal}
+
+\titleformat{\section}{\Large\bfseries\color{eagleblue}}{\thesection}{0.6em}{}
+\titleformat{\subsection}{\large\bfseries\color{eagleblue}}{\thesubsection}{0.6em}{}
+\titlespacing*{\section}{0pt}{1.3em}{0.5em}
+
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0.4pt}
+\fancyhead[L]{\small\color{eaglegray}EagleEye --- Cloud Technology Stack}
+\fancyhead[R]{\small\color{eaglegray}\leftmark}
+\fancyfoot[L]{\small\color{eaglegray}Final Year Project --- Technical Report}
+\fancyfoot[R]{\small\color{eaglegray}\thepage}
+
+\lstdefinestyle{eagle}{backgroundcolor=\color{codebg},basicstyle=\ttfamily\small,
+  breaklines=true,frame=single,rulecolor=\color{rulegray},framesep=6pt,xleftmargin=8pt,
+  showstringspaces=false,columns=fullflexible,keepspaces=true}
+\lstset{style=eagle}
+
+\newcommand{\code}[1]{\texttt{#1}}
+\newcommand{\free}{\textbf{\color{freegreen}FREE}}
+\newcommand{\paid}{\textbf{\color{paidorange}PAID}}
+\newcommand{\freepaid}{\textbf{\color{freegreen}FREE} tier \textbf{/} \textbf{\color{paidorange}PAID} upgrades}
+
+% reusable technology header block
+\newcommand{\techhead}[2]{\par\vspace{0.3em}\noindent
+  \begin{tabularx}{\linewidth}{@{}lX@{}}
+  \textbf{Type:} & #1 \\
+  \textbf{Cost:} & #2 \\
+  \end{tabularx}\par\vspace{0.3em}}
+
+\begin{document}
+
+% ====================== TITLE ======================
+\begin{titlepage}
+\centering
+\vspace*{2cm}
+{\color{eagleblue}\rule{\linewidth}{1.4pt}}\\[0.5cm]
+{\Huge\bfseries\color{eagleblue} EagleEye}\\[0.35cm]
+{\LARGE Cloud Architecture \& Technology Stack}\\[0.25cm]
+{\large\color{eaglegray} A Detailed Report on the Technologies Used, Their Roles, and Their Costs}\\[0.4cm]
+{\color{eagleblue}\rule{\linewidth}{1.4pt}}\\[1.2cm]
+
+\begin{minipage}{0.86\linewidth}\centering\itshape\color{eaglegray}
+EagleEye is a smart AI surveillance system built around an ESP32--CAM. This report
+explains the migration from a local (LAN) architecture to a fully cloud-connected,
+remote-capable architecture, and documents every technology in the new stack ---
+what it does, why it was chosen, and whether it is free or paid.
+\end{minipage}\\[1.6cm]
+
+\begin{tabular}{rl}
+\textbf{Project} & EagleEye --- AI Surveillance System \\[2pt]
+\textbf{Core device} & ESP32--CAM (AI Thinker) \\[2pt]
+\textbf{Document} & Cloud Technology Stack Report \\[2pt]
+\textbf{Scope} & Architecture, technologies, pricing, comparison \\
+\end{tabular}
+\vfill
+{\color{eaglegray}\small Pricing figures reflect publicly advertised free/paid tiers at the time of writing and should be re-verified before deployment.}
+\end{titlepage}
+
+\tableofcontents
+\newpage
+
+% ====================== 1. INTRODUCTION ======================
+\section{Introduction}
+EagleEye is an embedded AI surveillance node: an ESP32--CAM runs an on-device neural network
+that detects humans, captures an image of an intruder, drives a servo to pan the camera, and
+streams live video on request. The original prototype worked only on a \textbf{single local
+Wi-Fi network} and depended on a PC. This report documents the redesign into a
+\textbf{cloud-connected product} where the camera can be at one site and the phone anywhere in
+the world.
+
+\subsection{The architectural shift}
+The single most important change is the \textbf{direction of communication}. In the old design
+the phone had to reach \emph{into} the camera using its local IP address. In the new design the
+camera connects \emph{outward} to cloud services and stays connected --- exactly how a messaging
+app receives messages on a phone anywhere without anyone knowing the phone's IP. Because the
+device initiates every connection, there is no need for a fixed IP, port forwarding, or a PC on
+site, and the system works across any internet connection (home Wi-Fi, office, or 4G/LTE).
+
+\subsection{What this report covers}
+Section~\ref{sec:overview} gives a high-level before/after picture. Section~\ref{sec:stack}
+lists the full stack at a glance. Section~\ref{sec:tech} documents \textbf{each technology} in
+detail with its role and pricing. Section~\ref{sec:cost} summarises the total cost.
+Section~\ref{sec:compare} compares old vs new, and Section~\ref{sec:conclusion} concludes.
+
+% ====================== 2. OVERVIEW ======================
+\section{Architecture Overview}\label{sec:overview}
+
+\subsection{Old architecture (local / LAN)}
+\begin{lstlisting}
+   SITE (one local Wi-Fi)
+ ESP32-CAM + Helper-ESP32(servo) --local MQTT--> PC (Mosquitto + bridge.py)
+                                                 |--> Cloudinary (image)
+                                                 |--> Firebase (record)
+ Phone --- same Wi-Fi, types camera IP ---> ws://<ip>:81 (video), http://<ip>/servo
+\end{lstlisting}
+\textbf{Problems:} works only on the same Wi-Fi; the camera IP must be typed and changes
+often; a PC must stay powered to run the broker and the upload bridge; a second ESP32 board is
+needed just for the servo; the local broker is unencrypted and open.
+
+\subsection{New architecture (cloud)}
+\begin{lstlisting}
+   SITE A                       CLOUD                         ANYWHERE
+ ESP32-CAM (AI + servo) --TLS--> HiveMQ broker <--wss-- Phone app (control)
+        |  image  --HTTPS--> Cloudinary
+        |  alert  --REST---> Firebase  ----------------> Phone app (history)
+        |  video  --wss----> Deno relay ---------------> Phone app (live, on-demand)
+\end{lstlisting}
+\textbf{Result:} no PC, no helper board, no LAN IP. The camera reaches out to the cloud;
+the phone reaches the same cloud; they meet in the middle. It works from any network and is
+encrypted end-to-end.
+
+% ====================== 3. STACK AT A GLANCE ======================
+\section{The Technology Stack at a Glance}\label{sec:stack}
+\renewcommand{\arraystretch}{1.25}
+\begin{tabularx}{\linewidth}{@{}lXl@{}}
+\toprule
+\textbf{Technology} & \textbf{Role in EagleEye} & \textbf{Cost} \\
+\midrule
+MQTT (protocol)        & Lightweight messaging for commands/status/alerts & \free \\
+HiveMQ Cloud           & Managed MQTT broker (the cloud "post office")     & \freepaid \\
+TLS / Let's Encrypt    & Encryption + certificates for all connections     & \free \\
+Cloudinary             & Stores intruder images, returns a URL             & \freepaid \\
+Firebase Realtime DB   & Stores the alert history the app reads            & \freepaid \\
+Deno \& Deno Deploy    & Hosts the live-video relay server                 & \freepaid \\
+WebSocket (protocol)   & Transport for relayed video + app$\leftrightarrow$broker & \free \\
+React Native + Expo    & The cross-platform mobile app                     & \freepaid \\
+mqtt.js                & MQTT client library inside the app                & \free \\
+ESP32-CAM + Arduino    & The camera hardware + firmware framework          & hardware only \\
+Edge Impulse           & Trains / exports the human-detection AI model     & \freepaid \\
+ESP32 Arduino libs     & PubSubClient, ArduinoJson, WebSockets, ESP32Servo & \free \\
+\bottomrule
+\end{tabularx}
+
+% ====================== 4. TECHNOLOGIES IN DETAIL ======================
+\section{Technologies in Detail}\label{sec:tech}
+
+% ---------- MQTT ----------
+\subsection{MQTT (Message Queuing Telemetry Transport)}
+\techhead{Open messaging protocol / standard}{\free (the protocol is royalty-free)}
+\textbf{What it is.} MQTT is a lightweight publish/subscribe messaging protocol designed for
+IoT devices with limited bandwidth and power. Devices connect to a central \emph{broker} and
+exchange small messages on named \emph{topics} (mailboxes). A device can \emph{publish} to a
+topic and/or \emph{subscribe} to receive everything posted there.
+
+\textbf{Role in EagleEye.} MQTT is the control backbone. The camera publishes its
+\code{status} and \code{alert} topics and subscribes to a \code{cmd} topic; the app publishes
+commands (arm/disarm, servo angle, start/stop stream). Two features are especially useful:
+\emph{retained messages} (the broker keeps the last status so the app sees current state
+instantly) and the \emph{Last Will and Testament} (the broker auto-announces the camera is
+offline if it disconnects unexpectedly).
+
+\textbf{Free or paid?} The protocol itself is an open OASIS/ISO standard --- completely
+\free. Costs only arise from the broker that hosts it (next subsection).
+
+\textbf{Why chosen.} It is the de-facto industry standard for IoT command-and-control (used by
+AWS IoT, Azure IoT Hub, etc.), extremely light on the ESP32, and naturally outbound-connecting.
+
+% ---------- HiveMQ ----------
+\subsection{HiveMQ Cloud}
+\techhead{Managed cloud MQTT broker (SaaS)}{\freepaid}
+\textbf{What it is.} HiveMQ Cloud is a hosted, always-on MQTT broker. Instead of running our
+own broker on a PC, we use HiveMQ's managed service, which provides a secure endpoint, user
+credentials, and per-topic access control.
+
+\textbf{Role in EagleEye.} It is the cloud "post office" both the camera and the app connect
+to. The camera connects over TLS (port 8883); the app connects over secure WebSocket (port
+8884). All control, status, and alert signalling flows through it.
+
+\textbf{Free or paid?} HiveMQ Cloud offers a \free \textbf{Serverless} tier (sufficient for
+this project --- it supports a small number of devices and a monthly data allowance at no cost
+and requires no credit card). \paid plans (Starter / Professional / dedicated clusters) scale
+to more connections, more data throughput, and enterprise features. EagleEye runs entirely on
+the free tier.
+
+\textbf{Why chosen.} Zero-maintenance, secure by default (TLS + per-credential access), free
+for our scale, and removes the PC-hosted broker entirely.
+
+% ---------- TLS ----------
+\subsection{TLS / Let's Encrypt}
+\techhead{Transport-layer encryption + certificate authority}{\free}
+\textbf{What it is.} TLS (Transport Layer Security) is the same encryption that powers
+\code{https://}. It encrypts data in transit so no one on the network can read or tamper with
+it. Certificates (often issued free by Let's Encrypt) let the client verify it is talking to
+the genuine server.
+
+\textbf{Role in EagleEye.} Every cloud connection is encrypted: MQTT over TLS to HiveMQ,
+HTTPS to Cloudinary and Firebase, and secure WebSocket (\code{wss}) to the relay. This replaces
+the old open, unencrypted local broker.
+
+\textbf{Free or paid?} \free --- TLS is built into the libraries, and certificates from
+Let's Encrypt (used by the cloud providers) are free.
+
+\textbf{Why chosen.} Security is mandatory once data leaves the local network; TLS is the
+universal standard and is provided automatically by every service we use.
+
+% ---------- Cloudinary ----------
+\subsection{Cloudinary}
+\techhead{Cloud image storage \& delivery (media CDN)}{\freepaid}
+\textbf{What it is.} Cloudinary is a media-management cloud that stores images and serves them
+over a fast global URL. It supports \emph{unsigned upload presets}, which let a device upload
+directly without holding a secret key.
+
+\textbf{Role in EagleEye.} When the AI detects an intruder, the camera uploads the captured
+JPEG \emph{directly} to Cloudinary over HTTPS and receives back a public image URL. That URL is
+then stored in the alert record. This removed the PC bridge that used to do the upload.
+
+\textbf{Free or paid?} Cloudinary has a \free plan with a monthly allowance (storage,
+bandwidth, and transformations measured in "credits"), which is ample for a surveillance demo.
+\paid plans add more storage/bandwidth and advanced features. EagleEye uses the free plan with
+an unsigned upload preset scoped to one folder.
+
+\textbf{Why chosen.} Free, gives an instant shareable URL the app can display, and supports
+secure device-side uploads without embedding secret keys in the firmware.
+
+% ---------- Firebase ----------
+\subsection{Firebase Realtime Database}
+\techhead{Cloud NoSQL real-time database (Google)}{\freepaid}
+\textbf{What it is.} Firebase Realtime Database (RTDB) is a cloud-hosted JSON database that
+pushes updates to connected clients in real time. When data changes, every listening app
+updates instantly.
+
+\textbf{Role in EagleEye.} It stores the \textbf{alert history}. The camera writes each alert
+(\code{timestamp}, \code{image\_url}, \code{type}) into the \code{alerts} node via the REST
+API; the mobile app listens to that node and shows new intrusions immediately in the dashboard
+and gallery.
+
+\textbf{Free or paid?} The \free \textbf{Spark} plan covers our needs (a generous storage and
+download allowance and a limited number of simultaneous connections). The \paid
+\textbf{Blaze} (pay-as-you-go) plan is only needed for higher volume or for Cloud Functions /
+push notifications. EagleEye's alert history runs on the free tier.
+
+\textbf{Why chosen.} Real-time updates with no server code, an easy REST API the ESP32 can call
+directly, and it was already integrated in the original app, so the alert UI needed no changes.
+
+% ---------- Deno ----------
+\subsection{Deno \& Deno Deploy}
+\techhead{JavaScript/TypeScript runtime + serverless edge hosting}{\freepaid}
+\textbf{What it is.} Deno is a modern, secure runtime for JavaScript/TypeScript (an alternative
+to Node.js). \emph{Deno Deploy} is its serverless hosting platform that runs code on edge
+servers worldwide with built-in HTTPS/WebSocket support.
+
+\textbf{Role in EagleEye.} It hosts the \textbf{live-video relay} --- a small program that acts
+as a "meeting room": the camera connects out and pushes JPEG frames; the phone connects out and
+receives them. The relay simply forwards frames, so neither side needs the other's IP. This is
+what makes remote live video possible.
+
+\textbf{Free or paid?} Deno Deploy has a \free tier with a monthly request and bandwidth
+allowance that comfortably covers on-demand surveillance streaming. \paid (Pro) plans raise
+those limits. The relay runs on the free tier.
+
+\textbf{Why chosen.} Free, always-on, supports WebSockets natively, deploys a single file in
+minutes, and terminates TLS automatically (giving a \code{wss://} URL with no certificate work).
+
+% ---------- WebSocket ----------
+\subsection{WebSocket Protocol}
+\techhead{Full-duplex persistent network protocol / standard}{\free}
+\textbf{What it is.} WebSocket is a protocol that keeps a single connection open for continuous
+two-way data, unlike normal HTTP request/response. It is ideal for streaming and live updates.
+
+\textbf{Role in EagleEye.} It carries the \textbf{live video frames} between the camera, the
+relay, and the app, and also carries MQTT messages between the app and HiveMQ
+(MQTT-over-WebSocket). Persistent connections mean low latency and no constant polling.
+
+\textbf{Free or paid?} \free --- an open web standard built into browsers, React Native, and
+the ESP32 libraries.
+
+\textbf{Why chosen.} It is the natural transport for continuous binary frames and is supported
+everywhere (device, relay, and phone), letting the same decode/render path be reused.
+
+% ---------- React Native + Expo ----------
+\subsection{React Native \& Expo}
+\techhead{Cross-platform mobile app framework + tooling}{\freepaid}
+\textbf{What it is.} React Native is an open-source framework (by Meta) for building native
+Android and iOS apps from a single JavaScript codebase. Expo is a layer on top that simplifies
+development, testing (via the Expo Go app), and building.
+
+\textbf{Role in EagleEye.} It is the entire \textbf{mobile app}: the dashboard (arm/disarm,
+online status, latest alert), the live-view screen with the servo pan slider, the gallery, and
+the statistics charts. One codebase runs on both Android and iOS.
+
+\textbf{Free or paid?} React Native and the Expo SDK are open-source and \free. Testing in
+\textbf{Expo Go} is free. Expo's \textbf{EAS} cloud build/submit/push service has a \free tier
+(a limited number of builds per month) with \paid plans for higher build volume and priority.
+EagleEye is developed and demoed for free in Expo Go.
+
+\textbf{Why chosen.} One codebase for both platforms, fast iteration with live reload, large
+ecosystem, and a free path from development to a shippable build.
+
+% ---------- mqtt.js ----------
+\subsection{mqtt.js}
+\techhead{Open-source MQTT client library (JavaScript)}{\free}
+\textbf{What it is.} \code{mqtt.js} is the most widely used JavaScript MQTT client. It runs in
+browsers and React Native and speaks MQTT over WebSocket.
+
+\textbf{Role in EagleEye.} It is the app's connection to HiveMQ: it publishes commands
+(arm, servo, stream) and subscribes to the camera's status and stream-ready signals. It
+replaced the old "type the camera's IP" approach for control.
+
+\textbf{Free or paid?} \free --- open-source (MIT/EPL).
+
+\textbf{Why chosen.} Pure JavaScript (works in Expo Go without native modules), maintained, and
+the standard choice for MQTT in web/mobile apps.
+
+% ---------- ESP32-CAM ----------
+\subsection{ESP32-CAM \& the Arduino Framework}
+\techhead{Microcontroller-with-camera hardware + open firmware framework}{Hardware cost only; software \free}
+\textbf{What it is.} The ESP32--CAM (AI Thinker) is a low-cost board combining a dual-core
+ESP32 (Wi-Fi + processing) with an OV2640 camera and PSRAM. It is programmed with the
+open-source ESP32 Arduino core.
+
+\textbf{Role in EagleEye.} It is the \textbf{device itself} --- it runs the AI, captures
+images, drives the servo on GPIO~15, connects to the cloud, and streams video. In the new
+design it also took over the servo job (no second board).
+
+\textbf{Free or paid?} The \textbf{hardware} is a one-time purchase (roughly \$6--\$10 per
+board, plus a USB programmer and a 5\,V supply). The \textbf{software} --- the Arduino core and
+all toolchains --- is \free and open-source.
+
+\textbf{Why chosen.} Extremely low cost for a Wi-Fi camera with enough power to run a small
+neural network on-device, with a huge community and free tooling.
+
+% ---------- Edge Impulse ----------
+\subsection{Edge Impulse (On-device AI)}
+\techhead{TinyML model training \& deployment platform}{\freepaid}
+\textbf{What it is.} Edge Impulse is a platform for collecting data, training small neural
+networks, and exporting them as optimised C++ libraries that run on microcontrollers (TinyML).
+
+\textbf{Role in EagleEye.} It produced the \textbf{human-detection model} (an RGB
+$96\times96$ classifier) that runs \emph{on the ESP32 itself} --- no cloud inference, no
+per-image AI cost. The exported library performs the resize, normalisation, and neural-network
+inference on-device every frame.
+
+\textbf{Free or paid?} Edge Impulse has a \free \textbf{Developer/Community} plan that covers
+training and exporting models for personal/educational projects. \paid \textbf{Enterprise}
+plans add collaboration, larger datasets, and commercial features. The exported model runs
+on-device for free forever. EagleEye uses the free plan.
+
+\textbf{Why chosen.} It makes on-device AI accessible without deep ML expertise, and on-device
+inference means privacy (images analysed locally) and zero ongoing AI cost.
+
+% ---------- Arduino libs ----------
+\subsection{Supporting ESP32 Arduino Libraries}
+\techhead{Open-source firmware libraries}{\free}
+These libraries (all \free, open-source) implement the device side of each technology:
+\begin{itemize}[nosep,leftmargin=1.4em]
+  \item \textbf{PubSubClient} --- the MQTT client on the ESP32 (publishes status/alerts,
+        receives commands), used over a TLS connection.
+  \item \textbf{ArduinoJson} --- builds and parses the JSON messages for commands, status, and
+        alert records.
+  \item \textbf{WebSockets (by Markus Sattler)} --- the WebSocket client that pushes video
+        frames to the Deno relay.
+  \item \textbf{ESP32Servo} --- generates the servo control signal on GPIO~15, using a timer
+        that does not conflict with the camera.
+  \item \textbf{esp32-camera} --- the camera driver (capture + JPEG conversion).
+\end{itemize}
+\textbf{Why chosen.} They are the standard, well-maintained, free building blocks of the ESP32
+Arduino ecosystem and map one-to-one onto the cloud services above.
+
+% ====================== 5. COST ANALYSIS ======================
+\section{Cost Analysis: Free vs Paid}\label{sec:cost}
+A central design goal was that the entire cloud stack runs on \textbf{free tiers}, so the only
+real cost is the hardware. The table below summarises each item.
+
+\renewcommand{\arraystretch}{1.3}
+\begin{tabularx}{\linewidth}{@{}lXl@{}}
+\toprule
+\textbf{Item} & \textbf{Free tier used by EagleEye} & \textbf{When you would pay} \\
+\midrule
+HiveMQ Cloud      & Serverless free tier (small fleet, monthly data) & Many devices / high message volume \\
+Cloudinary        & Free plan (monthly credit allowance)             & Large media storage / bandwidth \\
+Firebase RTDB     & Spark free plan                                  & High traffic, Cloud Functions, push \\
+Deno Deploy       & Free tier (requests + bandwidth)                 & Heavy / continuous streaming \\
+Expo (EAS)        & Expo Go + free build allowance                   & Frequent production builds \\
+Edge Impulse      & Developer/Community plan                         & Commercial / enterprise use \\
+MQTT, TLS, WebSocket, RN, mqtt.js, Arduino libs & Open standards \& open-source & Never (always free) \\
+\midrule
+\textbf{Hardware} & ESP32--CAM + programmer + 5\,V supply + servo    & One-time purchase ($\approx$\$15--\$25 total) \\
+\bottomrule
+\end{tabularx}
+
+\vspace{0.5em}
+\noindent\textbf{Bottom line.} For a final-year-project scale (one camera, one or two users),
+the \textbf{recurring software cost is \$0/month}. The only spend is the one-time hardware. The
+architecture scales to paid tiers smoothly if it were ever commercialised, without changing the
+design.
+
+% ====================== 6. OLD VS NEW ======================
+\section{Old vs New: Summary of Changes}\label{sec:compare}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabularx}{\linewidth}{@{}lXX@{}}
+\toprule
+\textbf{Aspect} & \textbf{Old (LAN)} & \textbf{New (Cloud)} \\
+\midrule
+Reach           & Same Wi-Fi only            & Anywhere via the internet \\
+Addressing      & Type the camera's IP       & Device ID; no IP needed \\
+Broker          & Mosquitto on a PC, no TLS  & HiveMQ Cloud, TLS-secured \\
+Image upload    & PC bridge (\code{bridge.py}) & Camera uploads directly to Cloudinary \\
+Alert storage   & Written by the PC bridge   & Camera writes Firebase directly \\
+Live video      & Direct to camera IP        & Cloud relay, on-demand \\
+Control         & Firebase + bridge relay    & Direct MQTT commands \\
+Online status   & Heartbeat guesswork        & MQTT retained status + Last Will \\
+Servo           & Separate "helper" ESP32    & Driven on the main board (GPIO~15) \\
+PC required     & Yes                        & No \\
+Security        & Open, unencrypted          & Encrypted + per-device credentials \\
+\bottomrule
+\end{tabularx}
+
+% ====================== 7. CONCLUSION ======================
+\section{Conclusion}\label{sec:conclusion}
+The redesign of EagleEye replaced a fragile, location-locked, PC-dependent system with a
+clean, secure, cloud-connected one. The guiding principle --- \emph{the device reaches out to
+the cloud instead of waiting to be reached} --- eliminated the manual-IP problem, the on-site
+PC, and the extra microcontroller, while adding encryption, a truthful online/offline
+indicator, push-style alerting, and the ability to operate from anywhere.
+
+Equally important for a student project, every cloud technology in the stack was selected to
+run on a \textbf{free tier}: MQTT, TLS, and WebSocket are open standards; HiveMQ, Cloudinary,
+Firebase, Deno Deploy, Expo, and Edge Impulse all provide capable free plans; and the firmware
+libraries are open-source. The result is a professional, industry-aligned architecture
+(mirroring how commercial IoT platforms such as AWS IoT and Ring/Nest cameras are built) at
+\textbf{zero recurring software cost}, with a clear, unchanged path to paid tiers should the
+system ever be scaled to many cameras and users.
+
+\vspace{1em}
+\noindent{\color{rulegray}\rule{\linewidth}{0.4pt}}\\
+{\small\itshape\color{eaglegray} EagleEye FYP --- Cloud Architecture \& Technology Stack report.
+Free/paid tiers are based on publicly advertised pricing at the time of writing; verify current
+limits with each provider before relying on them.}
+
+\end{document}

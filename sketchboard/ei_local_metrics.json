@@ -1,0 +1,26 @@
+{
+  "created_at": "2026-06-13T02:41:44",
+  "replicates": "Edge Impulse project 'final' (EagleEye 96x96 RGB CNN)",
+  "class_order": [
+    "human",
+    "nonhuman"
+  ],
+  "balanced_per_class": 763,
+  "input": "96x96 RGB, [0,1] normalised",
+  "epochs_run": 54,
+  "learning_rate": 0.0005,
+  "keras_train_acc": 0.8622950911521912,
+  "keras_val_acc": 0.9215686321258545,
+  "int8_val_acc": 0.9215686274509803,
+  "int8_input_quant": {
+    "scale": 0.003921568859368563,
+    "zero_point": -128
+  },
+  "int8_output_quant": {
+    "scale": 0.00390625,
+    "zero_point": -128
+  },
+  "int8_tflite_bytes": 15120,
+  "tflite_int8_path": "C:\\fyp-eagle-eye\\sketchboard\\ei_local_int8.tflite",
+  "header_path": "C:\\fyp-eagle-eye\\sketchboard\\firmware\\eagleeye_local\\model_data.h"
+}

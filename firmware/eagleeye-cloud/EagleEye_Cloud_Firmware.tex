@@ -1,0 +1,259 @@
+\documentclass[11pt,a4paper]{article}
+
+% ----------------------------------------------------------------------
+%  EagleEye - Cloud (Remote) Firmware - Technical Reference & Setup Guide
+% ----------------------------------------------------------------------
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage[a4paper,margin=2.4cm,headheight=15pt]{geometry}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{longtable}
+\usepackage{enumitem}
+\usepackage{listings}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{parskip}
+\usepackage[hidelinks]{hyperref}
+
+% ---- palette ----
+\definecolor{eagleblue}{HTML}{1F4E79}
+\definecolor{eagleteal}{HTML}{2196F3}
+\definecolor{eaglegray}{HTML}{555555}
+\definecolor{codebg}{HTML}{F4F6F8}
+\definecolor{codekey}{HTML}{0B5394}
+\definecolor{rulegray}{HTML}{D0D5DB}
+
+\hypersetup{
+  pdftitle={EagleEye Cloud Firmware - Technical Reference},
+  pdfauthor={EagleEye FYP},
+  colorlinks=true, linkcolor=eagleblue, urlcolor=eagleteal
+}
+
+% ---- section styling ----
+\titleformat{\section}{\Large\bfseries\color{eagleblue}}{\thesection}{0.6em}{}
+\titleformat{\subsection}{\large\bfseries\color{eagleblue}}{\thesubsection}{0.6em}{}
+\titlespacing*{\section}{0pt}{1.4em}{0.6em}
+
+% ---- header / footer ----
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0.4pt}
+\fancyhead[L]{\small\color{eaglegray}EagleEye --- Cloud Firmware}
+\fancyhead[R]{\small\color{eaglegray}\leftmark}
+\fancyfoot[L]{\small\color{eaglegray}Technical Reference \& Setup Guide}
+\fancyfoot[R]{\small\color{eaglegray}\thepage}
+
+% ---- code listing style ----
+\lstdefinestyle{eagle}{
+  backgroundcolor=\color{codebg},
+  basicstyle=\ttfamily\small,
+  keywordstyle=\color{codekey}\bfseries,
+  commentstyle=\color{eaglegray}\itshape,
+  stringstyle=\color{eagleblue},
+  breaklines=true,
+  frame=single,
+  rulecolor=\color{rulegray},
+  framesep=6pt,
+  xleftmargin=8pt,
+  showstringspaces=false,
+  columns=fullflexible,
+  keepspaces=true
+}
+\lstset{style=eagle}
+
+\newcommand{\code}[1]{\texttt{#1}}
+
+\begin{document}
+
+% ====================== TITLE ======================
+\begin{titlepage}
+\centering
+\vspace*{2.2cm}
+{\color{eagleblue}\rule{\linewidth}{1.4pt}}\\[0.5cm]
+{\Huge\bfseries\color{eagleblue} EagleEye}\\[0.35cm]
+{\LARGE Cloud (Remote) Firmware}\\[0.25cm]
+{\large\color{eaglegray} Technical Reference \& Setup Guide}\\[0.4cm]
+{\color{eagleblue}\rule{\linewidth}{1.4pt}}\\[1.2cm]
+
+\begin{minipage}{0.85\linewidth}
+\centering\itshape\color{eaglegray}
+The remote / product firmware for the ESP32--CAM surveillance node:
+\textit{camera at a site, phone anywhere}. The device connects \textbf{outbound}
+to the cloud and stays connected, so its IP never matters.
+\end{minipage}\\[1.6cm]
+
+\begin{tabular}{rl}
+\textbf{Module}      & \code{firmware/eagleeye-cloud/} \\[2pt]
+\textbf{Target}      & ESP32--CAM (AI Thinker, PSRAM) \\[2pt]
+\textbf{Firmware}    & v1.0.0-cloud \\[2pt]
+\textbf{Plan}        & \code{distributed-roaming-candy.md} \\[2pt]
+\textbf{Status}      & Phases P1--P4 implemented (device side) \\
+\end{tabular}
+
+\vfill
+{\color{eaglegray}\small Independent of \code{firmware/eagleeye-main/} (the LAN build is untouched).}
+\end{titlepage}
+
+\tableofcontents
+\newpage
+
+% ====================== OVERVIEW ======================
+\section{Overview}
+This document describes the \textbf{cloud / remote} build of the EagleEye ESP32--CAM
+firmware. Unlike the LAN build in \code{firmware/eagleeye-main/} (where the phone reaches
+\emph{into} the camera by its local IP), this build inverts the topology: the device dials
+\textbf{out} to cloud services and holds the connection open --- exactly how a phone receives
+push messages anywhere without a fixed IP. This removes the manual-IP problem, the
+port-forwarding/NAT problem, and the dependency on a PC at the site.
+
+It implements the approved plan \code{distributed-roaming-candy.md}:
+\begin{itemize}[nosep,leftmargin=1.4em]
+  \item \textbf{Plane 1 --- Control \& alerts} over a managed cloud MQTT broker (TLS).
+  \item \textbf{Plane 2 --- Live video} via an on-demand cloud WebSocket relay.
+  \item \textbf{Direct HTTPS upload} of intruder images to Cloudinary (no PC bridge).
+  \item \textbf{Phase 4} --- Wi-Fi provisioning portal, HTTPS OTA, and TLS hardening.
+\end{itemize}
+
+% ====================== ARCHITECTURE ======================
+\section{Architecture}
+\begin{lstlisting}
+   SITE A                          CLOUD                          ANYWHERE
+ +-----------+   outbound TLS   +--------------+   wss (mqtt.js)  +---------+
+ | ESP32-CAM |---- 8883 ------->|  HiveMQ MQTT |<-----------------|  App    |
+ |  + helper |  status/alert    |  broker(TLS) |  cmd: arm/servo/ |         |
+ |           |  sub cmd         +--------------+  stream on/off   +---------+
+ |  image ---+--HTTPS--> Cloudinary --> ingestAlert(CF) --> RTDB --> app list
+ |  video ---+--wss----> relay (Node ws) --> app   (ON-DEMAND, token-gated)
+ +-----------+
+\end{lstlisting}
+Two planes with different needs: \textbf{control + alerts} are small, reliable, and
+always-connected (MQTT/TLS + HTTPS + RTDB); \textbf{video} is bursty and high-bandwidth
+(on-demand relay, hardware-JPEG frames).
+
+% ====================== FILE MAP ======================
+\section{File Map}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabularx}{\linewidth}{@{}lX@{}}
+\toprule
+\textbf{File} & \textbf{Role} \\
+\midrule
+\code{eagleeye-cloud.ino}    & Main sketch: AI loop, \code{DeviceMode} dispatch, command handling, setup. \\
+\code{config.h}              & All settings (fill the \code{DEV\_*} defaults) + NVS load/save + topic helpers + feature flags. \\
+\code{eagleeye\_camera.h}    & Camera pins; \code{MODE\_AI} (RGB565) vs \code{MODE\_RELAY} (hardware JPEG); safe mode switch; \code{eagleeye\_grab\_jpeg}. \\
+\code{EagleEye\_Cloud\_IoT.h}& MQTT-over-TLS: retained status + LWT, \code{cmd} parsing, alert publish, SNTP, non-blocking reconnect, \code{capture\_and\_send\_image}. \\
+\code{eagleeye\_upload.h}    & Direct HTTPS upload to Cloudinary (unsigned preset) + \code{ingest\_alert} to a Cloud Function. \\
+\code{eagleeye\_relay.h}     & Outbound \code{wss} relay client (Plane 2); on-demand with idle / max-session caps. \\
+\code{eagleeye\_ota.h}       & MQTT-triggered HTTPS OTA (Phase 4). \\
+\code{eagleeye\_provision.h} & Wi-Fi captive-portal setup (Phase 4, off by default). \\
+\bottomrule
+\end{tabularx}
+
+% ====================== LIBRARIES ======================
+\section{Required Arduino Libraries}
+\begin{itemize}[nosep,leftmargin=1.4em]
+  \item \textbf{PubSubClient} (knolleary) --- MQTT.
+  \item \textbf{ArduinoJson} (v6) --- JSON encode/decode.
+  \item \textbf{WebSockets} (Markus Sattler / Links2004) --- relay client.
+  \item \textbf{final\_inferencing} --- the EI v7.16 RGB $96\times96$ library (same one \code{eagleeye-main} uses).
+  \item \textbf{WiFiManager} (tzapu) --- \emph{only if} \code{ENABLE\_PROVISIONING} is set to \code{1}.
+\end{itemize}
+Board: \textbf{AI Thinker ESP32--CAM}, PSRAM enabled. For OTA, choose an \textbf{OTA-capable
+Partition Scheme} (Arduino IDE $\rightarrow$ Tools $\rightarrow$ Partition Scheme).
+
+% ====================== CONFIG ======================
+\section{Configuration (\texttt{config.h})}
+Edit the \code{DEV\_*} defaults before flashing: Wi-Fi credentials, HiveMQ host / user /
+password, Cloudinary cloud name and \textbf{unsigned upload preset}, and (later) the Cloud
+Function URLs and relay host. These are compile-time defaults; the Phase-4 portal can override
+them at runtime into NVS, so no re-flashing is needed to change networks in the field.
+
+% ====================== CLOUD SETUP ======================
+\section{Cloud Setup (Your Accounts)}
+\begin{enumerate}[leftmargin=1.5em]
+  \item \textbf{HiveMQ Cloud} (free tier): create a cluster and two credentials with topic
+        permissions --- a \emph{device} credential (publish \code{status/alert/stream},
+        subscribe \code{cmd}) and an \emph{app} credential (publish \code{cmd}, subscribe the rest),
+        each scoped to \code{eagleeye/<id>/\#}.
+  \item \textbf{Cloudinary}: create an \textbf{unsigned upload preset} that forces
+        \code{folder=eagleeye\_intrusions}, \code{resource\_type=image}, and a max size.
+        The API secret is \emph{never} placed on the device.
+  \item \textbf{Firebase Cloud Functions} (Phases 2--3): \code{ingestAlert} (writes RTDB
+        \code{alerts/} so the app's existing list shows it), \code{onDeletionRequest}
+        (Cloudinary destroy --- replaces \code{bridge.py}), \code{issueStreamToken}
+        (short-lived relay tokens).
+  \item \textbf{Relay} (Phase 3): a small Node \code{ws} server on Fly.io / Railway exposing \code{wss://}.
+\end{enumerate}
+
+% ====================== TOPICS ======================
+\section{Topics \& Command Format}
+\begin{lstlisting}
+eagleeye/<id>/status   retained + LWT   {"online":true,"armed":true,"fw":"...","rssi":-62}
+eagleeye/<id>/cmd      subscribe        {"type":"arm","value":true}
+                                        {"type":"servo","angle":90}
+                                        {"type":"stream","value":true}
+                                        {"type":"ota","url":"https://.../fw.bin"}
+                                        {"type":"factory_reset"}
+eagleeye/<id>/alert    publish          {"ts":...,"image_url":...,"public_id":...,
+                                         "score":...,"type":"Human Detected"}
+eagleeye/<id>/stream   publish          {"ready":true}   (tells the app to attach to the relay)
+\end{lstlisting}
+
+% ====================== TLS MEMORY ======================
+\section{TLS Memory (Design Rationale)}
+The ESP32--S1 cannot hold three TLS sessions at once. A single state machine
+\code{DeviceMode \{ MODE\_AI, MODE\_UPLOADING, MODE\_RELAY \}} (in \code{eagleeye\_camera.h})
+guarantees that \textbf{at most one of \{HTTPS upload, WSS relay\} is open at a time}. The
+persistent \textbf{MQTTS} session stays small because the old $\sim$50\,KB image buffer is gone
+(\code{setBufferSize(1024)}); JPEGs now travel over HTTPS instead of MQTT. HTTPS upload clients
+are scope-local and freed immediately after each upload, so the heap is reclaimed at once.
+
+% ====================== PHASE STATUS ======================
+\section{Phase Status (This Firmware)}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabularx}{\linewidth}{@{}lcX@{}}
+\toprule
+\textbf{Phase} & \textbf{State} & \textbf{Notes} \\
+\midrule
+P1 control / status & Done & MQTTS, LWT, retained status, \code{cmd}$\rightarrow$servo/arm/stream. \\
+P2 upload + alert   & Done & Cloudinary unsigned upload; \code{ingest\_alert} no-ops until \code{DEV\_INGEST\_URL} is set. \\
+P3 relay video      & Done & Hardware-JPEG switch + \code{wss} client; needs relay host + \code{issueStreamToken}. \\
+P4 prov / OTA / sec & Done* & OTA on by default; provisioning behind \code{ENABLE\_PROVISIONING}; TLS uses \code{setInsecure()} for dev --- set \code{TLS\_INSECURE 0} and pin CA certs for production. \\
+\bottomrule
+\end{tabularx}
+
+% ====================== BRING-UP ======================
+\section{Bring-up Order (Recommended)}
+\begin{enumerate}[leftmargin=1.5em]
+  \item Fill Wi-Fi + HiveMQ credentials, flash, and watch serial for: Wi-Fi join, SNTP,
+        \code{[MQTT] ok}, and a retained \code{status} message in the HiveMQ web client.
+        Cut power $\rightarrow$ \code{online:false} appears via the LWT.
+  \item From the HiveMQ web client, publish to \code{eagleeye/cam-01/cmd}:
+        \code{\{"type":"servo","angle":120\}} (servo moves) and \code{\{"type":"arm","value":false\}}.
+  \item Add the Cloudinary preset, trigger a detection $\rightarrow$ the image appears in
+        \code{eagleeye\_intrusions}. Deploy \code{ingestAlert} so it lands in RTDB and the app
+        shows it; then retire Mosquitto + \code{bridge.py}.
+  \item Deploy the relay + \code{issueStreamToken}, set \code{DEV\_RELAY\_HOST} /
+        \code{DEV\_TOKEN\_URL}, then \code{\{"type":"stream","value":true\}} $\rightarrow$ frames
+        flow; \code{false} stops.
+  \item Production: rotate the leaked Cloudinary / Firebase credentials, set
+        \code{TLS\_INSECURE 0} and pin CAs, and enable provisioning.
+\end{enumerate}
+
+% ====================== SECURITY ======================
+\section{Security Note}
+The Cloudinary API secret in \code{backend/bridge.py} / \code{.env} and the committed Firebase
+\code{serviceAccountKey.json} are \textbf{burned} --- rotate them and purge them from git history
+before shipping. This firmware deliberately holds \textbf{no} Cloudinary secret (it uses an
+unsigned preset) and only its own scoped MQTT credentials.
+
+\vspace{1.2em}
+\noindent{\color{rulegray}\rule{\linewidth}{0.4pt}}\\
+{\small\itshape\color{eaglegray} EagleEye FYP --- generated technical reference for the cloud
+firmware module. See \code{distributed-roaming-candy.md} for the full multi-phase plan including
+the mobile-app and cloud-service deliverables.}
+
+\end{document}

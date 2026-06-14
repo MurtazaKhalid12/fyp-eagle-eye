@@ -1,31 +1,49 @@
-# Secrets
-.env
-secrets.h
-serviceAccountKey.json
+# ============ secrets / credentials (NEVER commit) ============
+**/secrets.h
+firmware/eagleeye-cloud/config.h
+firmware/eagleeye-cloud-pio/config.h
+mobile-app/src/config/cloudConfig.js
+backend/.env
+backend/serviceAccountKey.json
+*.env
 
-# Python
+# ============ python ============
 __pycache__/
-*.py[cod]
-*$py.class
+*.pyc
 venv/
 .venv/
 .conda_env/
 
-# Arduino / ESP32
-*.bin
-*.elf
-*.map
-*.rar
+# ============ node ============
+node_modules/
 
-# Datasets & Large Files
-Human_Detection_Dataset/
-*.h5
-*.tflite
+# ============ platformio / arduino build ============
+.pio/
+.pioenvs/
+.vscode/.browse.c_cpp.db*
+
+# ============ large datasets / archives / model binaries ============
+dataset/
+datasets/
+_archive/
+models/
+model-training/exported-models/
+model-training/weights/
+*.rar
 *.zip
-Human-vs-NonHuman/
-models/eval_cache/
-models/eval_samples/
-sketchboard/mit_dataset/dataset/
-sketchboard/mit_dataset/merged_dataset/
-third_party/
+backend/captures/
+
+# ============ voice system: keep code, ignore data / vendored lib / builds ============
+voice system/dataset/background/
+voice system/dataset/footsteps/
+voice system/dataset/glass/
+voice system/dataset/VSCode_Project/lib/
+voice system/dataset/VSCode_Project/.pio/
+voice system/dataset/VSCode_Project/.vscode/
+voice system/**/.pio/
+voice system/training/out/head.keras
+
+# ============ misc ============
+*.log
 tools/diag/last_esp32_frame.png
+firmware/current model/

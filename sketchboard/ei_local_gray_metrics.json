@@ -1,0 +1,28 @@
+{
+  "created_at": "2026-06-13T14:49:04",
+  "variant": "grayscale-1ch + pure-black negatives",
+  "class_order": [
+    "human",
+    "nonhuman"
+  ],
+  "per_class": 763,
+  "n_black": 100,
+  "n_real_nonhuman": 663,
+  "luma_weights": [
+    77.0,
+    150.0,
+    29.0
+  ],
+  "epochs_run": 87,
+  "keras_train_acc": 0.9237704873085022,
+  "keras_val_acc": 0.9183006286621094,
+  "int8_val_acc": 0.9183006535947712,
+  "black_frame_human": 0.01953125,
+  "black_frame_nonhuman": 0.98046875,
+  "int8_input_quant": {
+    "scale": 0.003921568859368563,
+    "zero_point": -128
+  },
+  "int8_tflite_bytes": 14840,
+  "header_path": "C:\\fyp-eagle-eye\\sketchboard\\firmware\\eagleeye_local\\src\\model_data.h"
+}

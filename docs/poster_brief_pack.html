@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>EagleEye — A1 Poster Production Pack</title>
+<style>
+  :root{
+    --blue:#1F4E79; --teal:#2196F3; --ink:#1A1A1A; --slate:#555;
+    --panel:#F4F6F8; --rule:#D0D5DB; --green:#2E7D32; --red:#E53935;
+  }
+  @page{ size:A4; margin:14mm 15mm 14mm 15mm; }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; }
+  body{
+    font-family:"Segoe UI",Inter,Arial,sans-serif; color:var(--ink);
+    font-size:10.5pt; line-height:1.45;
+    -webkit-print-color-adjust:exact; print-color-adjust:exact;
+  }
+  h1,h2,h3{ color:var(--blue); margin:0 0 .3em; line-height:1.15; }
+  h1{ font-size:23pt; }
+  h2{ font-size:14.5pt; margin-top:1.1em; border-bottom:2px solid var(--blue); padding-bottom:3px; }
+  h3{ font-size:11.5pt; color:var(--teal); margin-top:.8em; }
+  p{ margin:.35em 0; }
+  small{ color:var(--slate); }
+  code,.mono{ font-family:"Consolas","Courier New",monospace; }
+  .tag{ display:inline-block; background:var(--blue); color:#fff; font-size:8.5pt;
+        padding:2px 8px; border-radius:10px; font-weight:600; letter-spacing:.3px; }
+  .accent{ color:var(--teal); font-weight:600; }
+  .muted{ color:var(--slate); }
+
+  /* ---- header band ---- */
+  .header{ display:flex; align-items:center; gap:14px; border-bottom:3px solid var(--blue);
+           padding-bottom:10px; margin-bottom:6px; }
+  .header .titleblock{ flex:1; }
+  .header .sub{ color:var(--slate); font-size:10.5pt; margin-top:2px; }
+
+  /* ---- logo / image slot (dashed drop-in) ---- */
+  .slot{ border:2px dashed var(--teal); background:repeating-linear-gradient(45deg,#fff,#fff 8px,#F2F8FE 8px,#F2F8FE 16px);
+         border-radius:8px; display:flex; flex-direction:column; align-items:center; justify-content:center;
+         text-align:center; color:var(--blue); padding:10px; }
+  .slot .lbl{ font-weight:700; font-size:10pt; }
+  .slot .fn{ font-family:"Consolas",monospace; font-size:8.5pt; color:var(--slate); margin-top:4px; }
+  .slot .hint{ font-size:8pt; color:var(--slate); margin-top:3px; font-style:italic; }
+  .logoslot{ width:150px; height:78px; flex:0 0 auto; }
+  .logoimg{ width:172px; flex:0 0 auto; background:#fff; border:1px solid var(--rule); border-radius:8px; padding:6px; display:flex; align-items:center; justify-content:center; }
+  .logoimg img{ width:100%; height:auto; max-height:64px; object-fit:contain; display:block; }
+
+  /* ---- fact box ---- */
+  .facts{ background:var(--panel); border:1px solid var(--rule); border-left:5px solid var(--blue);
+          border-radius:6px; padding:10px 14px; margin:8px 0 4px; }
+  .facts table{ width:100%; border-collapse:collapse; }
+  .facts td{ padding:2px 6px; vertical-align:top; font-size:10pt; }
+  .facts td.k{ color:var(--blue); font-weight:600; white-space:nowrap; width:120px; }
+
+  .grid2{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .grid3{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; }
+
+  /* ---- metric tiles ---- */
+  .tiles{ display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin:6px 0; }
+  .tile{ background:var(--panel); border:1px solid var(--rule); border-radius:6px; padding:8px 10px; text-align:center; }
+  .tile .n{ font-size:17pt; font-weight:800; color:var(--blue); line-height:1; }
+  .tile .l{ font-size:8.3pt; color:var(--slate); margin-top:4px; }
+
+  /* ---- asset board ---- */
+  .asset{ border:1px solid var(--rule); border-radius:6px; overflow:hidden; background:#fff; }
+  .asset img{ width:100%; height:150px; object-fit:cover; display:block; background:#000; }
+  .asset .cap{ padding:6px 8px; font-size:8.6pt; }
+  .asset .cap b{ color:var(--blue); }
+  .ok{ color:var(--green); font-weight:700; }
+  .need{ color:var(--red); font-weight:700; }
+
+  pre.diagram{ background:var(--panel); border:1px solid var(--rule); border-radius:6px;
+       padding:10px 12px; font-size:8.2pt; line-height:1.25; overflow:auto; }
+  ul{ margin:.3em 0; padding-left:1.2em; }
+  li{ margin:.15em 0; }
+  .checklist{ list-style:none; padding-left:0; }
+  .checklist li{ padding:4px 0 4px 26px; position:relative; border-bottom:1px dotted var(--rule); }
+  .checklist li:before{ content:"\2610"; position:absolute; left:2px; top:3px; font-size:13pt; color:var(--teal); }
+  .checklist li.done:before{ content:"\2611"; color:var(--green); }
+  .checklist li.done{ color:var(--slate); }
+  .pill{ display:inline-block; background:#EAF4FF; color:var(--blue); border:1px solid #CFE6FF;
+         border-radius:4px; padding:1px 6px; font-family:Consolas,monospace; font-size:8.5pt; }
+  .pagebreak{ page-break-before:always; }
+  .foot{ margin-top:14px; border-top:2px solid var(--blue); padding-top:6px; font-size:8.5pt; color:var(--slate); }
+  table.spec{ width:100%; border-collapse:collapse; font-size:9.2pt; margin:.3em 0; }
+  table.spec td,table.spec th{ border:1px solid var(--rule); padding:4px 7px; text-align:left; vertical-align:top; }
+  table.spec th{ background:var(--blue); color:#fff; font-weight:600; }
+  .swatch{ display:inline-block; width:11px; height:11px; border-radius:2px; border:1px solid #0003; vertical-align:middle; margin-right:4px;}
+</style>
+</head>
+<body>
+
+<!-- ============ HEADER ============ -->
+<div class="header">
+  <div class="logoimg"><img src="assets/itu_logo.png" alt="Information Technology University"></div>
+  <div class="titleblock">
+    <span class="tag">A1 POSTER · PRODUCTION PACK</span>
+    <h1>EagleEye — Intelligent Edge AI Surveillance System</h1>
+    <div class="sub">Designer brief + embedded assets + drop-in slots · <b>SparkUp Innovation Summit 2026</b> · 19 June 2026 · ITU ORIC</div>
+  </div>
+  <div class="logoslot slot">
+    <div class="lbl">SparkUp / ORIC</div>
+    <div class="fn">assets/sparkup_logo.png</div>
+    <div class="hint">drop file → regenerate</div>
+  </div>
+</div>
+
+<p class="muted" style="margin-top:2px;"><b>What this document is.</b> A print-ready production pack for the A1 poster: the full design brief, the real images we already have (embedded below), clean drop-in slots for the images still needed, and a checklist of what's missing. Hand it to a designer or use it yourself in Canva/Figma. Style = <b>clean academic</b>.</p>
+
+<!-- ============ FINAL FACTS ============ -->
+<div class="facts">
+<table>
+<tr><td class="k">Project</td><td>EagleEye — <b>Intelligent Edge AI Surveillance System</b></td></tr>
+<tr><td class="k">Team</td><td>Murtaza Khalid (BSCE22004) · Huzaifa Khan (BSCE22025) · Haseeb Ahmed (BSCE22048)</td></tr>
+<tr><td class="k">Roles</td><td>Murtaza — Edge AI &amp; Firmware · Huzaifa — Cloud &amp; Mobile App · Haseeb — Audio Threat Detection</td></tr>
+<tr><td class="k">Supervisor</td><td><b>Dr. Rehan Hafiz</b> (Professor; Director, ITU ORIC)</td></tr>
+<tr><td class="k">Co-Supervisor</td><td><b>Dr. Rehan Ahmed</b> (Assistant Professor &amp; Chairperson)</td></tr>
+<tr><td class="k">Affiliation</td><td>Dept. of Computer &amp; Software Engineering, Faculty of Engineering — <b>Information Technology University (ITU), Lahore</b></td></tr>
+<tr><td class="k">Deployed model</td><td>v7.16 — 96×96 RGB depthwise CNN, INT8 (on the ESP32-CAM)</td></tr>
+<tr><td class="k">Repo (QR)</td><td class="mono">github.com/muhammadAB123/fyp-eagle-eye</td></tr>
+</table>
+</div>
+
+<!-- ============ HEADLINE METRICS ============ -->
+<h2>Headline metrics (deployed v7.16)</h2>
+<div class="tiles">
+  <div class="tile"><div class="n">90.8%</div><div class="l">detection accuracy (held-out test; 87.5% human recall, balanced)</div></div>
+  <div class="tile"><div class="n">&lt;1 s</div><div class="l">fully on-device inference (~872 ms, ESP32-CAM — no cloud, no GPU)</div></div>
+  <div class="tile"><div class="n">&lt;3 s</div><div class="l">detection → phone alert (end-to-end)</div></div>
+  <div class="tile"><div class="n">18</div><div class="l">model versions engineered (v1.0 → v7.17)</div></div>
+  <div class="tile"><div class="n">~$10</div><div class="l">device vs $200+ commercial · $0/month cloud (free tiers)</div></div>
+  <div class="tile"><div class="n">100%</div><div class="l">private — non-threat frames never leave the device</div></div>
+</div>
+<p><small><b>Judge-ready rigor line:</b> "Selected from 18 trained variants — INT8 quantization, hard-negative mining, knowledge distillation, Optuna search, depthwise-separable architectures — converging on a custom from-scratch CNN holding &gt;90% accuracy entirely on-device." (Peak across the line: 92.35%.)</small></p>
+
+<!-- ============ DESIGN SPEC ============ -->
+<h2>Design spec (hard requirements)</h2>
+<table class="spec">
+<tr><th>Item</th><th>Spec</th></tr>
+<tr><td>Canvas</td><td>A1 portrait, <b>594 × 841 mm</b>, set at <b>300 dpi</b> (7016 × 9933 px), 5 mm bleed, 15 mm safe margin</td></tr>
+<tr><td>Export</td><td>PDF/X, <b>CMYK</b>, 300 dpi — confirm with the print shop before sending</td></tr>
+<tr><td>Readability</td><td>Title readable at 3 m, headings at 1.5 m, body at 1 m. Title ≥ 90 pt · headings ≥ 42 pt · body ≥ 28 pt · captions ≥ 22 pt</td></tr>
+<tr><td>Text budget</td><td>≤ 800 words total. Bullets / short phrases, not paragraphs. ~30–40% white space</td></tr>
+<tr><td>Reading path</td><td>One path: top-left → down left column → center → right column → footer. Number sections 1–6</td></tr>
+</table>
+
+<h3>Palette &amp; type</h3>
+<p>
+<span class="swatch" style="background:#1F4E79"></span><span class="mono">#1F4E79</span> primary blue ·
+<span class="swatch" style="background:#2196F3"></span><span class="mono">#2196F3</span> accent teal ·
+<span class="swatch" style="background:#1A1A1A"></span><span class="mono">#1A1A1A</span> ink ·
+<span class="swatch" style="background:#555555"></span><span class="mono">#555</span> caption ·
+<span class="swatch" style="background:#F4F6F8"></span><span class="mono">#F4F6F8</span> panel ·
+<span class="swatch" style="background:#2E7D32"></span><span class="mono">#2E7D32</span> green ·
+<span class="swatch" style="background:#E53935"></span><span class="mono">#E53935</span> alert red.
+One clean sans-serif (Inter / Source Sans 3, Montserrat for headings). Bold headings, regular body; max 2 weights per size.</p>
+
+<h3>Layout (A1 portrait)</h3>
+<pre class="diagram">+--------------------------------------------------------------+
+| HEADER BAND                                                  |
+| [ITU logo]   EAGLEEYE -- Intelligent Edge AI Surveillance    |
+|              one-line subtitle              [SparkUp logo]   |
+|   team (roll#s) . supervisor . co-supervisor . ITU CSE       |
++----------------------------+---------------------------------+
+| (1) THE PROBLEM            |  (4) SYSTEM ARCHITECTURE  *star* |
+|                            |      full cloud diagram, large  |
+| (2) OUR SOLUTION           |                                 |
+|     + hero device image    +---------------------------------+
+|                            |  (5) HOW IT WORKS (pipeline)    |
+| (3) KEY FEATURES           |      Capture->AI->Alert->Phone   |
+|     (icon bullets)         +---------------------------------+
+|                            |  (6) RESULTS + TECH STACK       |
+|                            |      metric tiles + logo row    |
++----------------------------+---------------------------------+
+| FOOTER: team . supervisors . ITU  |  [QR demo][QR repo]  Spark|
++--------------------------------------------------------------+</pre>
+
+<!-- ============ SECTION COPY ============ -->
+<div class="pagebreak"></div>
+<h2>Section copy (use almost verbatim — already poster-length)</h2>
+
+<div class="grid2">
+<div>
+<h3>① The Problem</h3>
+<ul>
+<li><b>Cloud cams</b> stream your footage to a company's servers — privacy risk + monthly subscription.</li>
+<li><b>DIY / LAN cams</b> work only on the same Wi-Fi — type the camera's IP, leave a PC running, risky port-forwarding.</li>
+<li>Most <b>record everything</b> — real events buried in hours of empty footage.</li>
+</ul>
+<p class="muted"><i>Goal: see real intrusions, from anywhere, privately, with no subscription.</i></p>
+
+<h3>② Our Solution</h3>
+<p><b>EagleEye</b> runs a neural network <b>on the camera itself</b>. A low-cost <b>ESP32-CAM</b> decides on-device whether a human is present — images are analysed locally, not in the cloud. On an intruder it pushes a <b>photo alert to your phone</b>, and you can open an <b>on-demand live view</b> and <b>pan the camera</b> — from <b>any network, anywhere</b> (Wi-Fi or 4G/LTE). The camera <b>reaches out</b> to the cloud and stays connected, so there is <b>no static IP, no port-forwarding, no on-site PC</b>. End-to-end encrypted; runs entirely on <b>free tiers</b>.</p>
+</div>
+<div>
+<h3>③ Key Features</h3>
+<ul>
+<li><b>On-device human detection</b> — TinyML; images never leave the device to be analysed</li>
+<li><b>Instant intruder alerts</b> — captured photo pushed to your phone, anywhere</li>
+<li><b>On-demand remote live video</b> — stream only when you ask</li>
+<li><b>App-controlled camera pan</b> — servo aim from the app</li>
+<li><b>Arm / disarm + true online status</b> — real online/offline, not guesswork</li>
+<li><b>Encrypted &amp; private</b> — TLS everywhere, per-device credentials</li>
+<li><b>~$10 hardware · $0/month</b> — entire cloud stack on free tiers</li>
+</ul>
+
+<h3>⑤ How It Works</h3>
+<p><span class="pill">Capture frame</span> → <span class="pill">On-device AI: human?</span> → <b>yes</b> → <span class="pill">Snap JPEG</span> → <span class="pill">Upload + Alert</span> → <span class="pill">Push to phone</span>; on request → <span class="pill">Live video via cloud relay</span>. <b>No</b> → keep watching.</p>
+<p class="muted"><i>Only confirmed humans trigger an alert — no hours of empty footage.</i></p>
+
+<h3>⑥ Tech stack</h3>
+<p>ESP32-CAM · Edge Impulse (TinyML) · MQTT / HiveMQ Cloud · Cloudinary · Firebase · Deno Deploy relay · React Native + Expo · TLS / WebSocket. <br><b>Why novel:</b> Edge AI on a microcontroller (privacy + zero inference cost) + an outbound-only architecture that works on any network — the pattern commercial IoT (AWS IoT, Ring/Nest) uses, rebuilt at $0/month.</p>
+</div>
+</div>
+
+<h3>④ System Architecture (the centerpiece — redraw clean &amp; flat)</h3>
+<pre class="diagram">  SITE A                         CLOUD                          ANYWHERE
+ +---------------+   outbound   +--------------+    wss/HTTPS   +----------+
+ |  ESP32-CAM    |== TLS =======>| HiveMQ (MQTT)|<===============|  Phone   |
+ |  on-device AI |  status/alert |   broker     |  commands      |  app     |
+ |  + servo pan  |  <== commands |              |  status/alert  | (RN/Expo)|
+ |               |               +--------------+                +----------+
+ |   image ------+-- HTTPS -----> Cloudinary  ------------> photo in app
+ |   alert ------+-- REST  -----> Firebase    ------------> alert history
+ |   video ------+-- wss (on-demand) -> Deno relay -------> live view
+ +---------------+
+ Every arrow points OUT from the device. Put a small lock icon on each link (end-to-end TLS).</pre>
+
+<!-- ============ ASSET BOARD ============ -->
+<div class="pagebreak"></div>
+<h2>Asset board — what we have <span class="ok">(embedded)</span> &amp; what we need <span class="need">(slots)</span></h2>
+
+<h3>Embedded — already on disk</h3>
+<div class="grid3">
+  <div class="asset">
+    <img src="assets/hardware_setup.png" alt="hardware">
+    <div class="cap"><b>Hero device (render)</b> — <span class="ok">have</span><br>Stylised 3D render. Use as hero <i>only if</i> no real photo. <code>assets/hardware_setup.png</code></div>
+  </div>
+  <div class="asset">
+    <img src="assets/local_flowchart.png" alt="flowchart">
+    <div class="cap"><b>Detection pipeline</b> — <span class="ok">have</span><br>Clean, usable for §⑤ as-is. <code>assets/local_flowchart.png</code></div>
+  </div>
+  <div class="asset">
+    <img src="assets/system_architecture.png" alt="arch-old">
+    <div class="cap"><b>Architecture (OLD/LAN)</b> — <span class="need">redraw</span><br>Shows old bridge+localDB. Redraw to cloud (§④). <code>assets/system_architecture.png</code></div>
+  </div>
+  <div class="asset">
+    <img src="assets/alert_interface.png" alt="alert">
+    <div class="cap"><b>"Intruder detected" HUD</b> — <span class="need">inset only</span><br>Cyberpunk; too sci-fi for clean style. Small inset max. <code>assets/alert_interface.png</code></div>
+  </div>
+</div>
+<p><small><b>Real captures:</b> <code>backend/captures/</code> has 50+ genuine ESP32-CAM detection JPEGs, but most are flash-overexposed and rotated — not poster-grade. Take one clean fresh capture for the "real detection" slot below.</small></p>
+
+<h3>Needed — drop the file into <code>docs/assets/</code> with the exact name, then ask me to regenerate</h3>
+<div class="grid3">
+  <div class="slot" style="height:150px"><div class="lbl">Real prototype photo</div><div class="fn">assets/prototype_photo.jpg</div><div class="hint">your actual built ESP32-CAM unit (hero)</div></div>
+  <div class="slot" style="height:150px"><div class="lbl">App screenshot</div><div class="fn">assets/app_screenshot.png</div><div class="hint">dashboard or live-view screen</div></div>
+  <div class="slot" style="height:150px"><div class="lbl">Real detection capture</div><div class="fn">assets/detection_sample.jpg</div><div class="hint">one clean intruder photo from the system</div></div>
+  <div class="asset"><img src="assets/itu_logo.png" alt="ITU" style="height:150px;object-fit:contain;background:#fff;padding:14px"><div class="cap"><b>ITU logo</b> — <span class="ok">have</span><br>Embedded in header. <code>assets/itu_logo.png</code></div></div>
+  <div class="slot" style="height:150px"><div class="lbl">SparkUp / ORIC logo</div><div class="fn">assets/sparkup_logo.png</div><div class="hint">event branding</div></div>
+  <div class="slot" style="height:150px"><div class="lbl">Demo-video QR</div><div class="fn">paste the video URL — I'll generate the QR</div><div class="hint">e.g. YouTube/Drive link</div></div>
+</div>
+
+<!-- ============ MISSING CHECKLIST ============ -->
+<h2>Still missing before print — checklist</h2>
+<ul class="checklist">
+  <li><b>Real prototype photo</b> of the built ESP32-CAM unit → save as <span class="pill">docs/assets/prototype_photo.jpg</span></li>
+  <li><b>App screenshot</b> (dashboard + live view) → <span class="pill">docs/assets/app_screenshot.png</span></li>
+  <li><b>One clean detection capture</b> (not overexposed) → <span class="pill">docs/assets/detection_sample.jpg</span></li>
+  <li class="done"><b>ITU logo</b> — added <span class="pill">docs/assets/itu_logo.png</span></li>
+  <li><b>SparkUp / ORIC logo</b> → <span class="pill">docs/assets/sparkup_logo.png</span></li>
+  <li><b>Demo-video URL</b> (for the QR) → just paste it to me</li>
+  <li><b>Confirm</b> the GitHub repo is public for the repo QR → <span class="pill">github.com/muhammadAB123/fyp-eagle-eye</span></li>
+</ul>
+<p><small>Drop the files in and tell me "regenerate" — they'll appear embedded in place of the dashed slots, and I'll add the QR codes.</small></p>
+
+<h2>Print &amp; display checklist (event day)</h2>
+<ul>
+<li>Export <b>PDF/X · CMYK · 300 dpi · A1 · 5 mm bleed</b> — confirm with the print shop first.</li>
+<li>Proof at 100% on screen; print one <b>A4 test</b> to catch low-res images / clipped text.</li>
+<li>Get it <b>A1 printed + framed</b> (assessment requirement, 10% of FYP grade).</li>
+<li>Bring your <b>own laptop + LCD/monitor + mounting</b> for the live demo. <b>Extension cords provided by ORIC.</b></li>
+<li>Flash the unit with the <b>v7.16</b> model so the demo matches the poster's 90.8% / ~872 ms numbers.</li>
+</ul>
+
+<div class="foot">
+EagleEye — Intelligent Edge AI Surveillance System · A1 Poster Production Pack · Information Technology University (ITU), Lahore — Dept. of Computer &amp; Software Engineering · SparkUp Innovation Summit 2026 (19 June 2026). Source brief: <span class="mono">docs/POSTER_BRIEF.md</span>.
+</div>
+
+</body>
+</html>
