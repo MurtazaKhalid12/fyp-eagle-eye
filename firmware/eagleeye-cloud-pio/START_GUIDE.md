@@ -8,7 +8,8 @@ by adding `-d C:\fyp-eagle-eye\firmware\eagleeye-cloud-pio` to the command.
 ```bash
 pio run                                # compile only
 pio run -t upload                      # compile + flash
-pio run -t upload --upload-port COM3   # flash to a specific port
+
+ # flash to a specific port
 pio run -t clean                       # delete .pio build cache (forces clean rebuild)
 pio device list                        # see which COM ports exist
 eemon                                  # serial monitor (COM3, DTR/RTS fix)

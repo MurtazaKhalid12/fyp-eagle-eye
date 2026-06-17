@@ -7,10 +7,13 @@
     "icon": "./assets/images/icon.png",
     "scheme": "mobileapp",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": false,
+    "newArchEnabled": true,
     "jsEngine": "hermes",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "EagleEye listens to the mic to detect footsteps and glass-break sounds on-device."
+      }
     },
     "android": {
       "usesCleartextTraffic": true,
@@ -21,7 +24,12 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
+      ],
+      "package": "com.murtazakhalid.mobileapp"
     },
     "web": {
       "output": "single",
@@ -39,10 +47,18 @@
             "backgroundColor": "#000000"
           }
         }
-      ]
+      ],
+      "expo-audio",
+      "react-native-fast-tflite"
     ],
     "updates": {
       "enabled": false
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "d320b6b1-3324-41ae-8207-b93922ec4eca"
+      }
+    },
+    "owner": "murtazakhalid"
   }
 }

@@ -37,8 +37,26 @@ print("[*] Ready - retrained head (default) + pretrained YAMNet (toggle).")
 
 app = Flask(__name__)
 
+def _decode_av(raw):
+    """Decode compressed audio (m4a/aac from phones, mp3, etc.) via PyAV -> 16 kHz mono."""
+    import av
+    container = av.open(io.BytesIO(raw))
+    stream = container.streams.audio[0]
+    resampler = av.AudioResampler(format="flt", layout="mono", rate=SR)
+    out = []
+    for frame in container.decode(stream):
+        res = resampler.resample(frame)
+        for rf in (res if isinstance(res, list) else [res]):
+            out.append(np.asarray(rf.to_ndarray()).reshape(-1))
+    container.close()
+    x = np.concatenate(out).astype(np.float32) if out else np.zeros(SR, np.float32)
+    return x, SR
+
 def to_16k_mono(raw_bytes):
-    x, sr = sf.read(io.BytesIO(raw_bytes), dtype="float32", always_2d=False)
+    try:
+        x, sr = sf.read(io.BytesIO(raw_bytes), dtype="float32", always_2d=False)   # wav
+    except Exception:
+        x, sr = _decode_av(raw_bytes)                                              # m4a/aac/mp3 (phone)
     if x.ndim > 1:
         x = x.mean(axis=1)
     if sr != SR:

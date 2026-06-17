@@ -1,0 +1,119 @@
+{
+  "project": "EagleEye — AI Vision Model Iterations",
+  "note": "Accuracy is test-set accuracy on balanced holdout. Latency is mean inference on RPi4/ESP32. * = estimated.",
+
+  "phase_1_simple_cnn": {
+    "description": "Low capacity — couldn't generalize beyond lab images",
+    "models": [
+      {
+        "version": "P0 ref",
+        "architecture": "Pretrained person detector (EI / TFLite)",
+        "input": "~96x96",
+        "accuracy": "70%",
+        "latency": "~700 ms*",
+        "verdict": "proved on-device TFLite; generic, not ours"
+      },
+      {
+        "version": "v1.0",
+        "architecture": "Tiny separable CNN",
+        "input": "48x48 gray",
+        "accuracy": "80-85%",
+        "latency": "~106 ms",
+        "verdict": "original prod; too weak"
+      },
+      {
+        "version": "v2.1",
+        "architecture": "Tiny CNN + hard negatives",
+        "input": "48x48 gray",
+        "accuracy": ">90%",
+        "latency": "~106 ms",
+        "verdict": "field-hardened"
+      },
+      {
+        "version": "v3.0",
+        "architecture": "Heavy CNN 16-32-64 (Optuna)",
+        "input": "48x48 gray",
+        "accuracy": "94.96%",
+        "latency": ">300 ms",
+        "verdict": "most accurate, not generalizable"
+      },
+      {
+        "version": "v6.1",
+        "architecture": "Edge Impulse CNN",
+        "input": "96x96 gray",
+        "accuracy": "~90%",
+        "latency": "~5000 ms*",
+        "verdict": "Too slow"
+      }
+    ]
+  },
+
+  "phase_2_knowledge_distillation": {
+    "description": "48px ceiling killed real-world gains",
+    "models": [
+      {
+        "version": "v4.0",
+        "architecture": "Distilled tiny (MobileNetV2 teacher)",
+        "input": "48x48 gray / 96x96 rgb",
+        "accuracy": "91.77%",
+        "latency": ">3000 ms",
+        "verdict": "Too much slow"
+      }
+    ]
+  },
+
+  "phase_3_pretrained_transfer": {
+    "description": "Most accurate, but too slow + weak novelty",
+    "models": [
+      {
+        "version": "v7.3",
+        "architecture": "MobileNetV1 0.2 (transfer)",
+        "input": "96x96 RGB",
+        "accuracy": "92.35% (peak)",
+        "latency": "~1 s*",
+        "verdict": "most accurate (borrowed backbone)"
+      },
+      {
+        "version": "v7.4",
+        "architecture": "MobileNetV1 0.2 + EON",
+        "input": "64x64 RGB",
+        "accuracy": "91.13%",
+        "latency": "~2000 ms",
+        "verdict": "Low inference"
+      }
+    ]
+  },
+
+  "phase_4_depthwise_separable": {
+    "description": "★ Cleared >90%, sub-second, fully custom",
+    "models": [
+      {
+        "version": "v7.15",
+        "architecture": "Depthwise-separable, from-scratch",
+        "input": "80x80 RGB",
+        "accuracy": "88.38%",
+        "latency": "~750 ms*",
+        "verdict": "bias fixed; just under 90"
+      },
+      {
+        "version": "v7.16",
+        "architecture": "Depthwise-separable, from-scratch",
+        "input": "96x96 RGB",
+        "accuracy": "90.83%",
+        "latency": "~872 ms",
+        "verdict": "★ deployed final",
+        "is_winner": true
+      },
+      {
+        "version": "v7.17",
+        "architecture": "Depthwise-separable (gray)",
+        "input": "96x96 gray",
+        "accuracy": "86.24%",
+        "latency": "~820 ms*",
+        "verdict": "lower-RAM sibling"
+      }
+    ]
+  },
+
+  "takeaway": "Each phase solved one problem but introduced another — only Phase 4 (depthwise-separable + 96x96 RGB + class balancing) cleared accuracy, latency, and novelty simultaneously."
+}
