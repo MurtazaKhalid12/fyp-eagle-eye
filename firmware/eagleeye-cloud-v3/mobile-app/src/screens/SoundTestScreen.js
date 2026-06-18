@@ -29,7 +29,7 @@ const CLASSES = [
     { k: 'glass', label: 'Glass Break', c: '#22c55e' },
 ];
 const PRETTY = { background: 'Background', footsteps: 'Footsteps', glass: 'Glass Break' };
-const CLIP_MS = 1200;            // length of each rolling window
+const CLIP_MS = 750;             // length of each recording clip — shorter = faster updates
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 export default function SoundTestScreen() {
@@ -44,7 +44,7 @@ export default function SoundTestScreen() {
     useEffect(() => () => { runningRef.current = false; }, []);   // stop loop on unmount
 
     const classifyOnce = async () => {
-        await recorder.prepareToRecordAsync();
+        // prepareToRecordAsync is called once in start(); here we just record → stop → upload
         recorder.record();
         await sleep(CLIP_MS);
         await recorder.stop();
@@ -70,7 +70,7 @@ export default function SoundTestScreen() {
                 setStatus('Listening live…');
             } catch (err) {
                 setStatus('Error: ' + (err?.message || err));
-                await sleep(800);   // back off on error, keep trying
+                await sleep(200);   // back off on error, keep trying
             }
         }
     };
@@ -80,6 +80,8 @@ export default function SoundTestScreen() {
             const perm = await AudioModule.requestRecordingPermissionsAsync();
             if (!perm.granted) { setStatus('Microphone permission denied'); return; }
             await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+            // Prepare the recorder ONCE here; the loop reuses it without re-preparing
+            await recorder.prepareToRecordAsync();
             emaRef.current = null;
             runningRef.current = true;
             setMonitoring(true);

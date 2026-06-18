@@ -1,0 +1,8 @@
+{
+  "name": "eagleeye_vision",
+  "version": "1.0.0",
+  "description": "EagleEye v7.16 TFLite Micro inference runtime (ESP-NN supplied via lib/ESP-NN)",
+  "build": {
+    "srcFilter": "+<*> -<src/eagleeye-sdk/porting/espressif/ESP-NN/src/>"
+  }
+}

@@ -118,6 +118,7 @@ def main():
     ap.add_argument("--lr", type=float, default=0.0005)
     ap.add_argument("--arch", choices=("standard", "separable"), default="standard")
     ap.add_argument("--test-split", type=float, default=0.15)
+    ap.add_argument("--val-split", type=float, default=0.15)
     ap.add_argument("--export-header", action="store_true")
     args = ap.parse_args()
 
@@ -129,7 +130,10 @@ def main():
         raise SystemExit("No images found — check dataset paths.")
     tr, te = stratified_split(y, args.test_split, rng)
     X_tr, y_tr, X_te, y_te = X[tr], y[tr], X[te], y[te]
-    print(f"train={len(X_tr)}  test={len(X_te)}  (human frac train={y_tr.mean():.2f})")
+    val_frac_of_train = args.val_split / (1.0 - args.test_split)
+    n_val = int(round(len(X_tr) * val_frac_of_train))
+    n_train = len(X_tr) - n_val
+    print(f"train={n_train}  val={n_val}  test={len(X_te)}  (human frac train={y_tr.mean():.2f})")
 
     cw = class_weights(y_tr)
     print(f"class weights (0=nonhuman,1=human): {cw}")
@@ -138,7 +142,7 @@ def main():
     model.compile(optimizer=tf.keras.optimizers.Adam(args.lr),
                   loss="sparse_categorical_crossentropy", metrics=["accuracy"])
     cb = [tf.keras.callbacks.EarlyStopping(monitor="val_loss", patience=12, restore_best_weights=True)]
-    model.fit(X_tr, y_tr, validation_split=0.15, epochs=args.epochs,
+    model.fit(X_tr, y_tr, validation_split=val_frac_of_train, epochs=args.epochs,
               batch_size=args.batch, class_weight=cw, callbacks=cb, verbose=2)
 
     pf = model.predict(X_te, verbose=0).argmax(1)

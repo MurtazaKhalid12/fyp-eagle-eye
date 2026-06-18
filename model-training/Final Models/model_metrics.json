@@ -19,22 +19,22 @@
         "input": "48x48 gray",
         "accuracy": "80-85%",
         "latency": "~106 ms",
-        "verdict": "original prod; too weak"
+        "verdict": "original prod; too weak very low human recall"
       },
       {
         "version": "v2.1",
         "architecture": "Tiny CNN + hard negatives",
         "input": "48x48 gray",
         "accuracy": ">90%",
-        "latency": "~106 ms",
-        "verdict": "field-hardened"
+        "latency": "~1006 ms",
+        "verdict": "field-hardened high latency"
       },
       {
         "version": "v3.0",
         "architecture": "Heavy CNN 16-32-64 (Optuna)",
         "input": "48x48 gray",
         "accuracy": "94.96%",
-        "latency": ">300 ms",
+        "latency": ">3000 ms",
         "verdict": "most accurate, not generalizable"
       },
       {
@@ -57,7 +57,7 @@
         "input": "48x48 gray / 96x96 rgb",
         "accuracy": "91.77%",
         "latency": ">3000 ms",
-        "verdict": "Too much slow"
+        "verdict": "slow"
       }
     ]
   },
@@ -70,12 +70,12 @@
         "architecture": "MobileNetV1 0.2 (transfer)",
         "input": "96x96 RGB",
         "accuracy": "92.35% (peak)",
-        "latency": "~1 s*",
+        "latency": "~2 s*",
         "verdict": "most accurate (borrowed backbone)"
       },
       {
         "version": "v7.4",
-        "architecture": "MobileNetV1 0.2 + EON",
+        "architecture": "MobileNetV1 0.2",
         "input": "64x64 RGB",
         "accuracy": "91.13%",
         "latency": "~2000 ms",
@@ -109,8 +109,8 @@
         "architecture": "Depthwise-separable (gray)",
         "input": "96x96 gray",
         "accuracy": "86.24%",
-        "latency": "~820 ms*",
-        "verdict": "lower-RAM sibling"
+        "latency": "~600 ms*",
+        "verdict": "Not accurate"
       }
     ]
   },

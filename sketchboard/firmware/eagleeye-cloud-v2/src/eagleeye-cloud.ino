@@ -1,266 +1,198 @@
 /*
  * ============================================================
- *  EagleEye — CLOUD build  (fixed inference pipeline)
+ *  EagleEye — CLOUD build (remote: camera at a site, phone anywhere)
  * ============================================================
- *  Plane 1 : MQTT-over-TLS (HiveMQ) — control / status / alerts
- *  Plane 2 : on-demand live video via cloud WebSocket relay
- *  Direct HTTPS upload to Cloudinary  (no PC bridge)
- *  Phase 4 : Wi-Fi setup portal, HTTPS OTA
+ *  Separate from firmware/eagleeye-main/ (that LAN build is untouched).
  *
- *  Inference: TFLite Micro (direct) + ESP-NN — pixel data is
- *  normalised /255 then quantised with the model's own input
- *  scale/zero-point.  Same pipeline as eagleeye_local_rgb.
+ *  Device dials OUT to the cloud and stays connected:
+ *    - Plane 1: MQTT-over-TLS (HiveMQ) for control + status + alerts
+ *    - Plane 2: on-demand live video via a cloud WebSocket relay
+ *    - Direct HTTPS image upload to Cloudinary (no PC bridge)
+ *    - Phase 4: Wi-Fi setup portal, HTTPS OTA, TLS hardening
+ *
+ *  Power mode: ALWAYS ON (deep sleep disabled for now). The device stays awake
+ *    running AI / MQTT / video continuously. PIR is wired but not used to wake.
+ *
+ *  Camera modes share one sensor (MODE_AI = RGB565 for the classifier,
+ *  MODE_RELAY = hardware JPEG for streaming). Only ONE TLS-heavy task
+ *  runs at a time (see README "TLS memory").
+ *
+ *  Fill in config.h before flashing. Required Arduino libraries:
+ *    PubSubClient, ArduinoJson, WebSockets (Links2004),
+ *    eagleeye_vision (v7.16 RGB, ESP-NN), [WiFiManager only if provisioning].
  * ============================================================
  */
-
-// ============================================================
-//  External libraries
-// ============================================================
 #include <Arduino.h>
 #include "esp_camera.h"
+#include <eagleeye_vision.h>            // EagleEye v7.16 human detection (96x96 RGB, ESP-NN)
 #include "esp_heap_caps.h"
+#include "esp_sleep.h"
 #include "soc/soc.h"
 #include "soc/rtc_cntl_reg.h"
-#include "img_converters.h"
-#include <WiFi.h>
-#include <WiFiClientSecure.h>
-#include <PubSubClient.h>
-#include <ArduinoJson.h>
-#include <WebSocketsServer.h>
-#include <WebSocketsClient.h>
-#include <ESP32Servo.h>
-#include <Preferences.h>
-#include <HTTPUpdate.h>
-#include <time.h>
-#include "esp_system.h"
-#include <math.h>
 
-// ============================================================
-//  EagleEye inference engine  (TFLite Micro + ESP-NN)
-// ============================================================
-#include <eagleeye_inferencing.h>
-#include "eagleeye-sdk/tensorflow/lite/micro/micro_interpreter.h"
-#include "eagleeye-sdk/tensorflow/lite/micro/micro_mutable_op_resolver.h"
-#include "eagleeye-sdk/tensorflow/lite/schema/schema_generated.h"
-#include "model_data.h"          // g_model[] — EagleEye v7.16 RGB INT8 weights
-
-// Alias the SDK's ESP-NN flag so application code uses EagleEye naming
-#define EE_ESP_NN EI_CLASSIFIER_TFLITE_ENABLE_ESP_NN
-
-// ============================================================
-//  Project config (credentials / feature flags)
-// ============================================================
 #include "config.h"
 #include "eagleeye_camera.h"
-#include "eagleeye_servos.h"
+#include "eagleeye_servos.h"          // 2 servos: PAN=GPIO12  TILT=GPIO14
+#include "eagleeye_oled.h"
+#include "eagleeye_pir.h"
 #include "EagleEye_Cloud_IoT.h"
-#include "eagleeye_lanctrl.h"
+#include "eagleeye_lanctrl.h"         // direct-LAN low-latency servo control (needs servos + IoT)
 #include "eagleeye_relay.h"
 #include "eagleeye_ota.h"
 #include "eagleeye_provision.h"
 
-// ============================================================
-//  AI model dimensions & threshold
-// ============================================================
-#define IMG_WIDTH          96
-#define IMG_HEIGHT         96
+// --- RTC RAM: survives deep sleep (reset on power-cycle or flash) ---
+RTC_DATA_ATTR static uint32_t g_boot_count = 0;
+RTC_DATA_ATTR static bool     g_rtc_armed  = true;  // armed state across sleep cycles
+
+// --- EagleEye inference API (wraps eagleeye-sdk internals so application code stays EI-free) ---
+#define EE_MODEL_INPUT_WIDTH     EI_CLASSIFIER_INPUT_WIDTH
+#define EE_MODEL_INPUT_HEIGHT    EI_CLASSIFIER_INPUT_HEIGHT
+#define EE_MODEL_LABEL_COUNT     EI_CLASSIFIER_LABEL_COUNT
+#define EE_INFERENCE_OK          EI_IMPULSE_OK
+#define EE_MODEL_NAME            EI_CLASSIFIER_PROJECT_NAME
+#define EE_MODEL_VERSION         EI_CLASSIFIER_PROJECT_DEPLOY_VERSION
+#define EE_MODEL_ESP_NN          EI_CLASSIFIER_TFLITE_ENABLE_ESP_NN
+#define ee_run_inference         run_classifier
+using ee_signal_t           = ei::signal_t;
+using ee_inference_result_t = ei_impulse_result_t;
+
+// --- AI config (from the EagleEye vision library metadata) ---
+#define IMG_WIDTH          EE_MODEL_INPUT_WIDTH    // 96
+#define IMG_HEIGHT         EE_MODEL_INPUT_HEIGHT   // 96
 #define HUMAN_THRESHOLD    0.6f
 #define CLEAR_SCENE_FRAMES 20
 
-// ============================================================
-//  TFLite Micro state  (EagleEye-prefixed)
-// ============================================================
-namespace {
-const tflite::Model*      ee_tflite_model       = nullptr;
-tflite::MicroInterpreter* ee_tflite_interpreter = nullptr;
-TfLiteTensor*             ee_model_input        = nullptr;
-TfLiteTensor*             ee_model_output       = nullptr;
-uint8_t*                  ee_tensor_arena        = nullptr;
-constexpr int             EE_ARENA_SIZE          = 160 * 1024;
-}
-
-// ============================================================
-//  AI buffers / state
-// ============================================================
-static uint8_t *ee_snapshot_buf = nullptr;   // IMG_WIDTH * IMG_HEIGHT * 3  (RGB888)
-unsigned long ee_frame_count        = 0;
-bool          ee_image_sent         = false;
-int           ee_clear_scene_count  = 0;
-unsigned long g_status_next         = 0;
-
-// ============================================================
-//  Servo entry-points  (called by mqtt_callback)
-// ============================================================
-void eagleeye_send_servo(int angle) {
+// --- servo command entry points (called by mqtt_callback) ---
+//  PAN=GPIO12  TILT=GPIO14  (see eagleeye_servos.h)
+void eagleeye_send_servo(int angle) {       // PAN
   set_pan(angle);
   Serial.printf(">>> pan  -> %d\n", servo_clamp(angle));
 }
-void eagleeye_send_tilt(int angle) {
+void eagleeye_send_tilt(int angle) {        // TILT
   set_tilt(angle);
   Serial.printf(">>> tilt -> %d\n", servo_clamp(angle));
 }
 
-// ============================================================
-//  ee_crop_resize — RGB565 QVGA -> centre-crop 240x240 -> 96x96 RGB888
-//  Matches eagleeye_local_rgb exactly: full 240px square → nearest-
-//  neighbour resize to 96x96 so the model sees the same field of view
-//  it was trained on.  offset_x = (320-240)/2 = 40px left margin.
-// ============================================================
-static void ee_crop_resize(const uint8_t *src, int sw, int sh,
-                            uint8_t *dst, int dw, int dh) {
-  int crop_w   = sh;                    // 240 — use full height as square side
-  int offset_x = (sw - crop_w) / 2;    // 40
+// --- AI buffers/state ---
+static uint8_t *snapshot_buf = nullptr;                // IMG_WIDTH*IMG_HEIGHT*3
+unsigned long frame_count = 0;
+bool image_sent_this_event = false;
+int  clear_scene_count = 0;
+int  consecutive_non_human_frames = 0;                 // count of non-human frames for deep sleep
+unsigned long g_status_next = 0;
+
+static int ee_get_data_cb(size_t offset, size_t length, float *out_ptr) {
+  size_t px = offset * 3;
+  for (size_t i = 0; i < length; i++) {
+    out_ptr[i] = (snapshot_buf[px] << 16) + (snapshot_buf[px + 1] << 8) + snapshot_buf[px + 2];
+    px += 3;
+  }
+  return 0;
+}
+
+// 320x240 RGB565 -> center-crop 240x240 -> 96x96 RGB888 (same as eagleeye-main)
+void resize_rgb565_to_rgb888(uint8_t *src, int sw, int sh, uint8_t *dst, int dw, int dh) {
+  int crop = sh; int ox = (sw - crop) / 2;
+  int di = 0;
   for (int y = 0; y < dh; y++) {
     for (int x = 0; x < dw; x++) {
-      int sx = offset_x + (x * crop_w / dw);
-      int sy = (y * sh / dh);
-      if (sx >= sw) sx = sw - 1;
-      if (sy >= sh) sy = sh - 1;
-      int      idx = (sy * sw + sx) * 2;
-      uint16_t pix = ((uint16_t)src[idx] << 8) | src[idx + 1];
-      uint8_t  r   = (pix >> 11) & 0x1F;
-      uint8_t  g   = (pix >>  5) & 0x3F;
-      uint8_t  b   =  pix        & 0x1F;
-      r = (r << 3) | (r >> 2);
-      g = (g << 2) | (g >> 4);
-      b = (b << 3) | (b >> 2);
-      int di  = (y * dw + x) * 3;
-      dst[di] = r; dst[di + 1] = g; dst[di + 2] = b;
+      int sx = ox + (x * crop / dw); int sy = (y * sh / dh);
+      if (sx >= sw) sx = sw - 1; if (sy >= sh) sy = sh - 1;
+      int idx = (sy * sw + sx) * 2;
+      uint16_t p = (src[idx] << 8) | src[idx + 1];
+      uint8_t r = (p >> 11) & 0x1F, g = (p >> 5) & 0x3F, b = p & 0x1F;
+      dst[di++] = (r << 3) | (r >> 2);
+      dst[di++] = (g << 2) | (g >> 4);
+      dst[di++] = (b << 3) | (b >> 2);
     }
   }
 }
 
-// ============================================================
-//  ee_run_inference — normalise ee_snapshot_buf, invoke model,
-//  return dequantised human / nonhuman scores.
-// ============================================================
-static void ee_run_inference(float &human, float &nonhuman) {
-  const float in_sc = ee_model_input->params.scale
-                        ? ee_model_input->params.scale : (1.0f / 255.0f);
-  const int   in_zp = ee_model_input->params.zero_point;
-  const int   n     = IMG_WIDTH * IMG_HEIGHT * 3;
-
-  for (int i = 0; i < n; i++) {
-    float norm = (float)ee_snapshot_buf[i] / 255.0f;
-    int   q    = (int)lroundf(norm / in_sc) + in_zp;
-    if (q < -128) q = -128;
-    if (q >  127) q =  127;
-    ee_model_input->data.int8[i] = (int8_t)q;
-  }
-
-  if (ee_tflite_interpreter->Invoke() != kTfLiteOk) {
-    Serial.println("[AI] Invoke failed");
-    human = nonhuman = 0.f;
+// One AI frame (MODE_AI only).
+void run_ai_step() {
+  // Pull any pending cloud command BEFORE the ~0.8 s inference. If the user is
+  // panning/tilting, skip this inference so the servo reacts now instead of one
+  // full inference late — loop() then services the servo and stays in the fast
+  // window. This is the single biggest cut to joystick latency.
+  mqtt_service();
+  lanctrl_service();
+  if (g_req_servo_angle >= 0 || g_req_tilt_angle >= 0 || millis() - g_last_cmd_ms < 2500) {
+    consecutive_non_human_frames = 0; // reset sleep counter during active commands
     return;
   }
 
-  const float o_sc = ee_model_output->params.scale;
-  const int   o_zp = ee_model_output->params.zero_point;
-  human    = ((int)ee_model_output->data.int8[0] - o_zp) * o_sc;
-  nonhuman = ((int)ee_model_output->data.int8[1] - o_zp) * o_sc;
-}
-
-// ============================================================
-//  ee_model_init — set up TFLite Micro arena + interpreter
-// ============================================================
-static void ee_model_init() {
-  ee_tensor_arena = (uint8_t *)heap_caps_malloc(EE_ARENA_SIZE,
-                                  MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
-  if (!ee_tensor_arena)
-    ee_tensor_arena = (uint8_t *)heap_caps_malloc(EE_ARENA_SIZE,
-                                    MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-  if (!ee_tensor_arena) {
-    Serial.println("[FATAL] arena alloc failed");
-    while (1) delay(1000);
-  }
-
-  ee_tflite_model = tflite::GetModel(g_model);
-  if (ee_tflite_model->version() != TFLITE_SCHEMA_VERSION) {
-    Serial.printf("[FATAL] model schema %lu != %d\n",
-                  (unsigned long)ee_tflite_model->version(), TFLITE_SCHEMA_VERSION);
-    while (1) delay(1000);
-  }
-
-  static tflite::MicroMutableOpResolver<10> ee_resolver;
-  ee_resolver.AddConv2D();
-  ee_resolver.AddMaxPool2D();
-  ee_resolver.AddReshape();
-  ee_resolver.AddFullyConnected();
-  ee_resolver.AddSoftmax();
-  ee_resolver.AddQuantize();
-  ee_resolver.AddDequantize();
-  ee_resolver.AddShape();
-  ee_resolver.AddStridedSlice();
-  ee_resolver.AddPack();
-
-  static tflite::MicroInterpreter ee_interp(
-      ee_tflite_model, ee_resolver, ee_tensor_arena, EE_ARENA_SIZE, nullptr, nullptr);
-  ee_tflite_interpreter = &ee_interp;
-
-  if (ee_tflite_interpreter->AllocateTensors(true) != kTfLiteOk) {
-    Serial.println("[FATAL] AllocateTensors failed — raise EE_ARENA_SIZE");
-    while (1) delay(1000);
-  }
-
-  ee_model_input  = ee_tflite_interpreter->input(0);
-  ee_model_output = ee_tflite_interpreter->output(0);
-
-  Serial.printf("[model] EagleEye v7.16  input %dx%dx%d  scale=%.6f  zp=%d  arena=%u B\n",
-                ee_model_input->dims->data[1],
-                ee_model_input->dims->data[2],
-                ee_model_input->dims->data[3],
-                ee_model_input->params.scale,
-                ee_model_input->params.zero_point,
-                (unsigned)ee_tflite_interpreter->arena_used_bytes());
-#if EE_ESP_NN
-  Serial.println("[model] ESP-NN: ENABLED");
-#else
-  Serial.println("[model] ESP-NN: DISABLED");
-#endif
-}
-
-// ============================================================
-//  run_ai_step — one inference cycle (MODE_AI only)
-// ============================================================
-void run_ai_step() {
-  // Skip inference while servos are being commanded — keeps latency low.
-  mqtt_service();
-  lanctrl_service();
-  if (g_req_servo_angle >= 0 || g_req_tilt_angle >= 0 ||
-      millis() - g_last_cmd_ms < 2500) return;
-
   camera_fb_t *fb = esp_camera_fb_get();
   if (!fb) { Serial.println("[AI] capture failed"); delay(80); return; }
-
-  ee_crop_resize(fb->buf, fb->width, fb->height,
-                 ee_snapshot_buf, IMG_WIDTH, IMG_HEIGHT);
+  resize_rgb565_to_rgb888(fb->buf, fb->width, fb->height, snapshot_buf, IMG_WIDTH, IMG_HEIGHT);
   esp_camera_fb_return(fb);
 
-  float human = 0.f, nonhuman = 0.f;
-  ee_run_inference(human, nonhuman);
+  ee_signal_t signal;
+  signal.total_length = IMG_WIDTH * IMG_HEIGHT;
+  signal.get_data = &ee_get_data_cb;
+  ee_inference_result_t result = { 0 };
+  if (ee_run_inference(&signal, &result, false) != EE_INFERENCE_OK) { Serial.println("[AI] classify err"); return; }
 
-  ee_frame_count++;
+  float human = 0.f, nonhuman = 0.f;
+  for (uint16_t i = 0; i < EE_MODEL_LABEL_COUNT; i++) {
+    if (!strcmp(result.classification[i].label, "human")) human = result.classification[i].value;
+    else nonhuman = result.classification[i].value;
+  }
+  frame_count++;
   bool detected = (human >= HUMAN_THRESHOLD && human > nonhuman);
 
   if (detected) {
-    ee_clear_scene_count = 0;
-    Serial.printf("[AI %lu] HUMAN H=%.3f N=%.3f\n", ee_frame_count, human, nonhuman);
-    if (!ee_image_sent) {
-      capture_and_send_image(human);
-      ee_image_sent = true;
+    clear_scene_count = 0;
+    consecutive_non_human_frames = 0;                // reset deep sleep frame counter
+    oled_log("HUMAN DETECTED");                      // fast, non-blocking — every detected frame
+    Serial.printf("[AI %lu] HUMAN H=%.3f N=%.3f\n", frame_count, human, nonhuman);
+    if (!image_sent_this_event) {
+      capture_and_send_image(human);                 // upload + alert (cloud)
+      image_sent_this_event = true;
     }
   } else {
-    Serial.printf("[AI %lu] no human  H=%.3f N=%.3f\n", ee_frame_count, human, nonhuman);
-    if (ee_image_sent && ++ee_clear_scene_count >= CLEAR_SCENE_FRAMES) {
-      ee_image_sent = false; ee_clear_scene_count = 0;
-      Serial.println("[AI] scene cleared — re-armed");
+    consecutive_non_human_frames++;
+    Serial.printf("[AI %lu] no human  H=%.3f N=%.3f (non-human frames: %d/20)\n", 
+                  frame_count, human, nonhuman, consecutive_non_human_frames);
+    if (image_sent_this_event && ++clear_scene_count >= CLEAR_SCENE_FRAMES) {
+      image_sent_this_event = false; clear_scene_count = 0;
+      Serial.println("[AI] scene cleared - re-armed for next detection");
+      oled_clear_alert();
+      oled_log("Scene Cleared");
+    }
+
+    // Go to deep sleep after 20 consecutive frames of non-human
+    if (consecutive_non_human_frames >= 20) {
+      Serial.println("[AI] 20 consecutive non-human frames. Entering deep sleep...");
+      
+      // Save armed state to RTC RAM
+      g_rtc_armed = is_system_armed;
+      
+      // Display sleeping on OLED
+      oled_show_sleeping();
+      delay(2000); // let screen render and stabilize
+      
+      // Disconnect MQTT cleanly to update status immediately
+      if (client.connected()) {
+        client.publish(topic_status().c_str(), "{\"online\":false}", true);
+        client.disconnect();
+        delay(500);
+      }
+      
+      // Configure PIR (GPIO 2) as wakeup source
+      pir_configure_wakeup();
+      
+      // Enter deep sleep
+      esp_deep_sleep_start();
     }
   }
 }
 
-// ============================================================
-//  Core-0 servo task — smooth stepper at ~330 Hz
-// ============================================================
+// ---------------------------------------------------------------
+//  Core-0 servo task — runs the smooth servo stepper at ~330 Hz,
+//  independent of Core 1 (AI/MQTT/video). Only LEDC writes happen
+//  here; both WebSocket servers stay on Core 1 (not thread-safe).
+// ---------------------------------------------------------------
 void servo_core0_task(void *pv) {
   for (;;) {
     servos_service();
@@ -268,81 +200,102 @@ void servo_core0_task(void *pv) {
   }
 }
 
-// ============================================================
-//  setup
-// ============================================================
 void setup() {
-  WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0);
+  WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0);           // brownout band-aid (fix power for real)
   Serial.begin(115200);
   delay(400);
-  Serial.println("\n=== EagleEye CLOUD build ===");
+
+  g_boot_count++;
+  bool from_pir = pir_is_wakeup_source();
+  Serial.printf("\n=== EagleEye CLOUD build  boot#%u  wakeup=%s ===\n",
+                g_boot_count, from_pir ? "PIR" : "cold");
+
+  // Restore armed state from RTC RAM (survives across sleep cycles)
+  is_system_armed = g_rtc_armed;
+
+  // Initialize OLED first so every stage below shows on screen
+  oled_begin(EE_MODEL_NAME);
+  oled_set_system(is_system_armed ? "Armed" : "Disarmed");
+
+  // Show wakeup reason on the event line
+  {
+    char bootMsg[22];
+    if (from_pir) {
+      snprintf(bootMsg, sizeof(bootMsg), "Wake: PIR Motion");
+    } else {
+      snprintf(bootMsg, sizeof(bootMsg), "Boot #%u", (unsigned)g_boot_count);
+    }
+    oled_log(bootMsg);
+  }
 
   config_load();
-  Serial.printf("[cfg] deviceId=%s  mqtt=%s:%u\n",
-                g_cfg.deviceId.c_str(), g_cfg.mqttHost.c_str(), g_cfg.mqttPort);
+  Serial.printf("[cfg] deviceId=%s mqtt=%s:%u\n", g_cfg.deviceId.c_str(), g_cfg.mqttHost.c_str(), g_cfg.mqttPort);
 
 #if ENABLE_PROVISIONING
-  provision_begin();
+  provision_begin();                                   // captive portal if unconfigured
 #endif
 
-  ee_model_init();     // TFLite Micro + ESP-NN (must be before camera — uses internal SRAM)
+  snapshot_buf = (uint8_t *)malloc(IMG_WIDTH * IMG_HEIGHT * 3);
+  if (!snapshot_buf) { Serial.println("[FATAL] snapshot alloc failed"); while (1) delay(1000); }
 
-  ee_snapshot_buf = (uint8_t *)malloc(IMG_WIDTH * IMG_HEIGHT * 3);
-  if (!ee_snapshot_buf) {
-    Serial.println("[FATAL] snapshot buf alloc failed");
-    while (1) delay(1000);
-  }
+  // Camera init AFTER oled_begin — camera driver reinstalls I2C0 for SCCB (GPIO26/27).
+  // OLED uses Wire1 (I2C1) so it is unaffected.
+  if (!setup_camera_ai()) { Serial.println("[FATAL] camera init failed"); while (1) delay(1000); }
 
-  if (!setup_camera_ai()) {
-    Serial.println("[FATAL] camera init failed");
-    while (1) delay(1000);
-  }
+  servos_begin();                                      // PAN=GPIO12  TILT=GPIO14
+  pir_begin();                                         // PIR input on GPIO2
 
-  servos_begin();
-  init_wifi_mqtt();
-  lanctrl_begin();
+  init_wifi_mqtt();                                    // WiFi + SNTP + secure MQTT
+  lanctrl_begin();                                     // direct-LAN servo control (ws://<ip>:81)
 
+  // Pin the servo stepper to Core 0 so video/AI on Core 1 can never stall PTZ motion.
   xTaskCreatePinnedToCore(servo_core0_task, "servoCtl", 4096, NULL, 2, NULL, 0);
 
-  Serial.printf("[heap] internal=%u  PSRAM=%u\n",
+  Serial.printf("[heap] free internal=%u  PSRAM=%u\n",
                 (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
                 (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+  Serial.printf("[model] %s v%d  %dx%d  ESP-NN=%d\n",
+                EE_MODEL_NAME, EE_MODEL_VERSION,
+                IMG_WIDTH, IMG_HEIGHT, EE_MODEL_ESP_NN);
 
 #if STREAM_AUTOSTART
-  Serial.println("[DEBUG] STREAM_AUTOSTART=1");
+  Serial.println("[DEBUG] STREAM_AUTOSTART=1 -> opening relay on boot");
   g_req_stream_on = true;
 #endif
+
+  oled_log("System Ready");
 }
 
-// ============================================================
-//  loop
-// ============================================================
 void loop() {
-  mqtt_service();
-  lanctrl_service();
+  oled_tick();                                         // spinner + alert flash animation
+  mqtt_service();                                      // pump + non-blocking reconnect
+  lanctrl_service();                                   // direct-LAN command RX (Core 1)
 
+  // PIR is WAKE-ONLY: it boots the device from deep sleep (ext0, GPIO2 HIGH).
+  // No PIR value/motion is printed to serial or shown on the OLED.
+
+  // Periodic status refresh (rssi/armed) so the app stays current
   if (client.connected() && millis() > g_status_next) {
     g_status_next = millis() + 15000;
     publish_status();
   }
 
-  if (g_req_factory_reset) {
-    Serial.println("[CMD] factory reset");
-    config_factory_reset(); delay(200); ESP.restart();
-  }
+  // --- act on cloud commands (set by mqtt_callback) ---
+  if (g_req_factory_reset) { Serial.println("[CMD] factory reset"); config_factory_reset(); delay(200); ESP.restart(); }
   if (g_req_servo_angle >= 0) { eagleeye_send_servo(g_req_servo_angle); g_req_servo_angle = -1; }
   if (g_req_tilt_angle  >= 0) { eagleeye_send_tilt(g_req_tilt_angle);   g_req_tilt_angle  = -1; }
 #if ENABLE_OTA
-  if (g_req_ota_url.length() && g_mode == MODE_AI) {
-    String u = g_req_ota_url; g_req_ota_url = ""; ota_perform(u);
-  }
+  if (g_req_ota_url.length() && g_mode == MODE_AI) { String u = g_req_ota_url; g_req_ota_url = ""; ota_perform(u); }
 #endif
-  if (g_req_stream_on)  { g_req_stream_on  = false; if (g_mode != MODE_RELAY) relay_start(); }
+  if (g_req_stream_on)  { g_req_stream_on = false;  if (g_mode != MODE_RELAY) relay_start(); }
   if (g_req_stream_off) { g_req_stream_off = false; if (g_mode == MODE_RELAY) relay_stop();  }
 
+  // --- mode dispatch ---
   if (g_mode == MODE_RELAY)    { relay_loop(); return; }
-  if (g_mode == MODE_UPLOADING) { delay(2); return; }
+  if (g_mode == MODE_UPLOADING){ delay(2);    return; }
+
+  // Skip AI while joystick commands are flowing (keeps panning snappy)
   if (millis() - g_last_cmd_ms < 2500) { delay(5); return; }
 
-  run_ai_step();
+  run_ai_step();                                       // MODE_AI
 }

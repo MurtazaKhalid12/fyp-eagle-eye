@@ -1,6 +1,12 @@
 #include "eagleeye_inference.h"
 #include "model_data.h"
 
+// ESP-NN hardware-accelerated kernels (lib/ESP-NN).
+// Including this header makes the library visible to the linker so TFLite
+// Micro's ESP-NN-aware kernel implementations call the accelerated routines
+// instead of the generic ANSI-C fallbacks.
+#include <esp_nn.h>
+
 // TFLite Micro headers — bundled inside lib/eagleeye_vision
 #include "eagleeye-sdk/tensorflow/lite/micro/micro_interpreter.h"
 #include "eagleeye-sdk/tensorflow/lite/micro/micro_mutable_op_resolver.h"
