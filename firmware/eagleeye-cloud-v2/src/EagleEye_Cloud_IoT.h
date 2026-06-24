@@ -190,18 +190,16 @@ inline void capture_and_send_image(float score) {
   if (!is_system_armed) { Serial.println("[CAP] disarmed - skip"); return; }
 
   g_mode = MODE_UPLOADING;
-  // No blocking full-screen alert — detection already shows "HUMAN DETECTED" on the
-  // status line (fast). The upload progress ("Uploading..."/"Alert Sent") logs below.
+  oled_fullscreen_uploading();
   camera_fb_t *fb = esp_camera_fb_get();
-  if (!fb) { Serial.println("[CAP] capture failed"); oled_log("Cap Failed"); g_mode = MODE_AI; return; }
+  if (!fb) { Serial.println("[CAP] capture failed"); g_mode = MODE_AI; return; }
 
   uint8_t *jpg = NULL; size_t jpgLen = 0;
   bool ok = fmt2jpg(fb->buf, fb->len, fb->width, fb->height, PIXFORMAT_RGB565, 85, &jpg, &jpgLen);
   esp_camera_fb_return(fb);
-  if (!ok || !jpg) { Serial.println("[CAP] jpeg encode failed"); if (jpg) free(jpg); oled_log("JPG Enc Failed"); g_mode = MODE_AI; return; }
+  if (!ok || !jpg) { Serial.println("[CAP] jpeg encode failed"); if (jpg) free(jpg); g_mode = MODE_AI; return; }
 
   String url, pid;
-  oled_log("Uploading...");
   if (cloudinary_upload(jpg, jpgLen, url, pid)) {
     firebase_push_alert(url, pid, score);                // write straight into Firebase RTDB (app reads this)
     ingest_alert(url, pid, score);                       // optional Cloud Function path (no-op if unset)
@@ -211,12 +209,9 @@ inline void capture_and_send_image(float score) {
     a["score"] = score;   a["type"] = "Human Detected";
     char buf[384]; size_t n = serializeJson(a, buf);
     client.publish(topic_alert().c_str(), (const uint8_t *)buf, n, false);
-    
-    char alertMsg[32];
-    snprintf(alertMsg, sizeof(alertMsg), "Alert Sent (%.0f%%)", score * 100.0);
-    oled_log(alertMsg);
+    oled_fullscreen_alert_sent(score);
   } else {
-    oled_log("Upload Failed");
+    Serial.println("[CAP] upload failed");
   }
   free(jpg);
   g_mode = MODE_AI;

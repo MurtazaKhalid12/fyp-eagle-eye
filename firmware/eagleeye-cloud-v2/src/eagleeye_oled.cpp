@@ -59,7 +59,7 @@ static bool is_connected(const String& s) {
 //  └────────────────────────┘  y=63
 
 void oled_update() {
-  if (!oled_ok || oled_state == OLED_STATE_ALERT || g_streaming) return;
+  if (!oled_ok || oled_state != OLED_STATE_STATUS || g_streaming) return;
 
   oled_display.clearDisplay();
 
@@ -190,27 +190,11 @@ void oled_begin(const char* model_name) {
   // ── Boot splash ──────────────────────────────────────────
   oled_display.clearDisplay();
   oled_display.setTextColor(SSD1306_WHITE);
-
-  // Decorative top bar
-  oled_display.fillRect(0, 0, 128, 3, SSD1306_WHITE);
-
-  // Logo
   oled_display.setTextSize(2);
-  oled_display.setCursor(14, 10);
+  oled_display.setCursor(16, 14);
   oled_display.print("EagleEye");
-
-  // Subtitle
-  oled_display.setTextSize(1);
-  oled_display.setCursor(22, 30);
-  oled_display.print("CLOUD BUILD");
-
-  // Decorative lines + boot text
-  oled_display.drawFastHLine(0, 42, 128, SSD1306_WHITE);
-  oled_display.setCursor(16, 47);
-  oled_display.print("Initializing...");
-  oled_display.drawFastHLine(0, 60, 128, SSD1306_WHITE);
-  oled_display.fillRect(0, 61, 128, 3, SSD1306_WHITE);
-
+  oled_display.setCursor(34, 36);
+  oled_display.print("Cloud");
   oled_display.display();
   Serial.println("[OK] OLED: Wire  SDA=GPIO15  SCL=GPIO13");
 }
@@ -227,13 +211,14 @@ void oled_tick() {
       g_invert    = !g_invert;
       oled_display.invertDisplay(g_invert);
     }
-  } else {
+  } else if (oled_state == OLED_STATE_STATUS) {
     if (now - g_last_anim > 200) {
       g_last_anim = now;
       g_spin = (g_spin + 1) % 4;
       oled_update();
     }
   }
+  // OLED_STATE_FULLSCREEN: no auto-refresh — each inference frame drives the display
 }
 
 void oled_set_wifi(const char* status) {
@@ -307,6 +292,137 @@ void oled_set_streaming(bool on) {
   oled_display.setTextSize(1);
   oled_display.setCursor(14, 52);
   oled_display.print("Streaming video");
+  oled_display.display();
+}
+
+// ── Full-screen detection states ──────────────────────────────────────────────
+
+void oled_fullscreen_human(float score) {
+  if (!oled_ok) return;
+  g_score    = score;
+  oled_state = OLED_STATE_FULLSCREEN;
+  oled_display.invertDisplay(false);
+  oled_display.clearDisplay();
+
+  oled_display.fillRect(0, 0, 128, 13, SSD1306_WHITE);
+  oled_display.setTextColor(SSD1306_BLACK);
+  oled_display.setTextSize(1);
+  oled_display.setCursor(28, 3);
+  oled_display.print("!! HUMAN !!");
+  oled_display.setTextColor(SSD1306_WHITE);
+
+  oled_display.setTextSize(2);
+  oled_display.setCursor(10, 17);
+  oled_display.print("DETECTED!");
+
+  oled_display.setTextSize(1);
+  oled_display.setCursor(34, 38);
+  char buf[20];
+  snprintf(buf, sizeof(buf), "Score: %.0f%%", score * 100.0f);
+  oled_display.print(buf);
+
+  oled_display.fillRect(0, 50, 128, 14, SSD1306_WHITE);
+  oled_display.setTextColor(SSD1306_BLACK);
+  oled_display.setCursor(22, 53);
+  oled_display.print("Live Detection");
+  oled_display.setTextColor(SSD1306_WHITE);
+
+  oled_display.display();
+}
+
+void oled_fullscreen_no_human() {
+  if (!oled_ok) return;
+  oled_state = OLED_STATE_FULLSCREEN;
+  oled_display.invertDisplay(false);
+  oled_display.clearDisplay();
+
+  oled_display.setTextColor(SSD1306_WHITE);
+  oled_display.setTextSize(2);
+  oled_display.setCursor(16, 16);
+  oled_display.print("No Human");
+
+  oled_display.setTextSize(1);
+  oled_display.setCursor(20, 50);
+  oled_display.print("Monitoring...");
+
+  oled_display.display();
+}
+
+void oled_fullscreen_scene_cleared() {
+  if (!oled_ok) return;
+  oled_state = OLED_STATE_FULLSCREEN;
+  oled_display.invertDisplay(false);
+  oled_display.clearDisplay();
+
+  oled_display.fillRect(0, 0, 128, 13, SSD1306_WHITE);
+  oled_display.setTextColor(SSD1306_BLACK);
+  oled_display.setTextSize(1);
+  oled_display.setCursor(19, 3);
+  oled_display.print("SCENE CLEARED");
+  oled_display.setTextColor(SSD1306_WHITE);
+
+  oled_display.setTextSize(2);
+  oled_display.setCursor(16, 19);
+  oled_display.print("Re-Armed");
+
+  oled_display.fillRect(0, 50, 128, 14, SSD1306_WHITE);
+  oled_display.setTextColor(SSD1306_BLACK);
+  oled_display.setCursor(19, 53);
+  oled_display.print("Ready to Detect");
+  oled_display.setTextColor(SSD1306_WHITE);
+
+  oled_display.display();
+}
+
+void oled_fullscreen_uploading() {
+  if (!oled_ok) return;
+  oled_state = OLED_STATE_FULLSCREEN;
+  oled_display.invertDisplay(false);
+  oled_display.clearDisplay();
+
+  oled_display.fillRect(0, 0, 128, 13, SSD1306_WHITE);
+  oled_display.setTextColor(SSD1306_BLACK);
+  oled_display.setTextSize(1);
+  oled_display.setCursor(31, 3);
+  oled_display.print("UPLOADING");
+  oled_display.setTextColor(SSD1306_WHITE);
+
+  oled_display.setTextSize(2);
+  oled_display.setCursor(4, 24);
+  oled_display.print("Sending...");
+
+  oled_display.display();
+}
+
+void oled_fullscreen_alert_sent(float score) {
+  if (!oled_ok) return;
+  oled_state = OLED_STATE_FULLSCREEN;
+  oled_display.invertDisplay(false);
+  oled_display.clearDisplay();
+
+  oled_display.fillRect(0, 0, 128, 13, SSD1306_WHITE);
+  oled_display.setTextColor(SSD1306_BLACK);
+  oled_display.setTextSize(1);
+  oled_display.setCursor(25, 3);
+  oled_display.print("ALERT SENT!");
+  oled_display.setTextColor(SSD1306_WHITE);
+
+  oled_display.setTextSize(2);
+  oled_display.setCursor(28, 17);
+  oled_display.print("Sent!");
+
+  oled_display.setTextSize(1);
+  oled_display.setCursor(34, 38);
+  char buf[20];
+  snprintf(buf, sizeof(buf), "Score: %.0f%%", score * 100.0f);
+  oled_display.print(buf);
+
+  oled_display.fillRect(0, 50, 128, 14, SSD1306_WHITE);
+  oled_display.setTextColor(SSD1306_BLACK);
+  oled_display.setCursor(10, 53);
+  oled_display.print("Cloud notified!");
+  oled_display.setTextColor(SSD1306_WHITE);
+
   oled_display.display();
 }
 

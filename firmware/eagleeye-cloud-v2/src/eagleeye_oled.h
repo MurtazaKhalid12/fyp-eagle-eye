@@ -14,8 +14,9 @@
 
 // Display states
 typedef enum {
-  OLED_STATE_STATUS,   // normal operation
-  OLED_STATE_ALERT,    // human detected — flashing
+  OLED_STATE_STATUS,      // normal status screen
+  OLED_STATE_ALERT,       // legacy flashing alert
+  OLED_STATE_FULLSCREEN,  // full-screen detection state — suppresses auto-refresh
 } OledState;
 
 extern Adafruit_SSD1306 oled_display;
@@ -37,9 +38,16 @@ void oled_set_mqtt(const char* status);
 void oled_set_system(const char* status);
 void oled_set_rssi(int rssi);           // call with WiFi.RSSI() to show signal bars
 void oled_log(const char* event);
-void oled_show_alert(float score);      // dramatic full-screen intruder display
-void oled_clear_alert();                // return to status screen
+void oled_show_alert(float score);
+void oled_clear_alert();
 void oled_show_sleeping();
-void oled_set_streaming(bool on);       // static "LIVE" screen + suppress redraws while streaming
+void oled_set_streaming(bool on);
+
+// Full-screen detection states — each covers the entire 128×64 display
+void oled_fullscreen_human(float score);
+void oled_fullscreen_no_human();
+void oled_fullscreen_scene_cleared();
+void oled_fullscreen_uploading();
+void oled_fullscreen_alert_sent(float score);
 
 #endif // EAGLEEYE_OLED_H

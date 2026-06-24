@@ -139,19 +139,19 @@ void run_ai_step() {
 
   if (detected) {
     clear_scene_count = 0;
-    oled_log("HUMAN DETECTED");                      // fast, non-blocking — every detected frame
+    oled_fullscreen_human(human);
     Serial.printf("[AI %lu] HUMAN H=%.3f N=%.3f\n", frame_count, human, nonhuman);
     if (!image_sent_this_event) {
       capture_and_send_image(human);                 // upload + alert (cloud)
       image_sent_this_event = true;
     }
   } else {
+    oled_fullscreen_no_human();
     Serial.printf("[AI %lu] no human  H=%.3f N=%.3f\n", frame_count, human, nonhuman);
     if (image_sent_this_event && ++clear_scene_count >= CLEAR_SCENE_FRAMES) {
       image_sent_this_event = false; clear_scene_count = 0;
       Serial.println("[AI] scene cleared - re-armed for next detection");
-      oled_clear_alert();
-      oled_log("Scene Cleared");
+      oled_fullscreen_scene_cleared();
     }
   }
 }
