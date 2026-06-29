@@ -49,11 +49,16 @@ Python Bridge (backend/bridge.py)  [optional / local mode]
 
 ## Project Structure
 
+> **Active firmware:** `firmware/eagleeye-cloud-v2/`
+> PlatformIO build — ESP32-CAM connects to **HiveMQ Cloud** (TLS 8883), streams live video through the **Deno relay**, uploads intrusion images to **Cloudinary**, and writes alerts to **Firebase** via REST.
+> Flash with: `cd firmware/eagleeye-cloud-v2 && pio run --target upload`
+
 ```
 fyp-eagle-eye/
 |
 |-- firmware/                          ESP32-CAM firmware
-|   |-- eagleeye-cloud-v2/            [ACTIVE] PlatformIO — HiveMQ TLS, Deno relay, cloud upload
+|   |-- eagleeye-cloud-v2/            *** ACTIVE FIRMWARE (flash this one) ***
+|   |                                 PlatformIO — HiveMQ TLS, Deno relay, cloud upload
 |   |   |-- src/
 |   |   |   |-- eagleeye-cloud.ino    Main sketch (setup + loop)
 |   |   |   |-- config.h             All credentials + feature flags (fill before flash)
