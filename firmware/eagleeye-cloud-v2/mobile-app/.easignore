@@ -1,0 +1,15 @@
+# EAS regenerates the native projects during the cloud build (prebuild),
+# so we don't need to upload local native folders or their build caches.
+# This keeps the project archive small (was 526 MB → a few MB).
+android/
+ios/
+
+# Metro / Expo / build caches
+.expo/
+.expo-shared/
+web-build/
+dist/
+
+# Logs & misc
+*.log
+npm-debug.*
